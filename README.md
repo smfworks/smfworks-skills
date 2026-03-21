@@ -2,7 +2,7 @@
 
 A curated collection of productivity skills for OpenClaw — from everyday utilities to business automation tools.
 
-**21 Skills Total:** 11 Free (forever) + 10 Pro (subscription)
+**22 Skills Total:** 11 Free (forever) + 11 Pro (subscription)
 
 ---
 
