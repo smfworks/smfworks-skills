@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""
+SMF CLI - Unified command-line interface for SMF Works Skills
+Usage:
+    smf install <skill>          # Install a skill
+    smf uninstall <skill>       # Uninstall a skill
+    smf run <skill> [args]       # Run a skill
+    smf list                      # List installed skills
+    smf search [query]            # Search available skills
+    smf login                     # Authenticate for Pro skills
+    smf logout                    # Remove authentication
+    smf status                    # Show subscription status
+    smf update                    # Update all skills
+"""
+
+import sys
+import os
+import json
+import subprocess
+from pathlib import Path
+from urllib.request import urlopen, Request
+from urllib.error import HTTPError
+
+# Configuration
+SMF_DIR = Path.home() / ".smf"
+SKILLS_DIR = SMF_DIR / "skills"
+BIN_DIR = Path.home() / ".local" / "bin"
+REPO_URL = "https://github.com/smfworks/smfworks-skills.git"
+RAW_URL = "https://raw.githubusercontent.com/smfworks/smfworks-skills/main"
+
+def ensure_dirs():
+    """Ensure SMF directories exist."""
+    SMF_DIR.mkdir(parents=True, exist_ok=True)
+    SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_installed_skills():
+    """Get list of installed skills."""
+    if not SKILLS_DIR.exists():
+        return []
+    return [d.name for d in SKILLS_DIR.iterdir() if d.is_dir() and (d / "main.py").exists()]
+
+def is_skill_available(skill_name):
+    """Check if skill exists in repository."""
+    try:
+        url = f"{RAW_URL}/skills/{skill_name}/main.py"
+        req = Request(url, method='HEAD')
+        with urlopen(req, timeout=5) as response:
+            return response.status == 200
+    except:
+        return False
+
+def install_skill(skill_name):
+    """Install a skill from the repository."""
+    ensure_dirs()
+    
+    print(f"📥 Installing {skill_name}...")
+    
+    # Check if skill exists
+    if not is_skill_available(skill_name):
+        print(f"❌ Skill '{skill_name}' not found in repository.")
+        print(f"   Run 'smf search' to see available skills.")
+        return False
+    
+    skill_dir = SKILLS_DIR / skill_name
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Download main.py
+    try:
+        url = f"{RAW_URL}/skills/{skill_name}/main.py"
+        with urlopen(url, timeout=30) as response:
+            content = response.read().decode('utf-8')
+            (skill_dir / "main.py").write_text(content)
+    except Exception as e:
+        print(f"❌ Failed to download {skill_name}: {e}")
+        return False
+    
+    # Download README if available
+    try:
+        url = f"{RAW_URL}/skills/{skill_name}/README.md"
+        with urlopen(url, timeout=10) as response:
+            content = response.read().decode('utf-8')
+            (skill_dir / "README.md").write_text(content)
+    except:
+        pass
+    
+    # Create wrapper script
+    wrapper = BIN_DIR / f"smf-{skill_name}"
+    wrapper_content = f'''#!/bin/bash
+# SMF Works Skill: {skill_name}
+python3 "{skill_dir}/main.py" "$@"
+'''
+    wrapper.write_text(wrapper_content)
+    wrapper.chmod(0o755)
+    
+    print(f"✅ {skill_name} installed successfully!")
+    print(f"   Run: smf run {skill_name} --help")
+    return True
+
+def uninstall_skill(skill_name):
+    """Uninstall a skill."""
+    skill_dir = SKILLS_DIR / skill_name
+    wrapper = BIN_DIR / f"smf-{skill_name}"
+    
+    if not skill_dir.exists():
+        print(f"❌ {skill_name} is not installed.")
+        return False
+    
+    print(f"🗑️  Uninstalling {skill_name}...")
+    
+    # Remove skill directory
+    import shutil
+    shutil.rmtree(skill_dir)
+    
+    # Remove wrapper
+    if wrapper.exists():
+        wrapper.unlink()
+    
+    print(f"✅ {skill_name} uninstalled.")
+    return True
+
+def run_skill(skill_name, args):
+    """Run an installed skill."""
+    skill_dir = SKILLS_DIR / skill_name
+    main_file = skill_dir / "main.py"
+    
+    if not main_file.exists():
+        print(f"❌ {skill_name} is not installed.")
+        print(f"   Install with: smf install {skill_name}")
+        return 1
+    
+    # Run the skill
+    cmd = [sys.executable, str(main_file)] + args
+    return subprocess.call(cmd)
+
+def list_skills():
+    """List all installed skills."""
+    installed = get_installed_skills()
+    
+    if not installed:
+        print("No skills installed.")
+        print("Run 'smf install <skill>' to install one.")
+        return
+    
+    print("📦 Installed Skills:")
+    print("-" * 40)
+    for skill in sorted(installed):
+        print(f"  • {skill}")
+    print("")
+    print(f"Total: {len(installed)} skill(s)")
+
+def search_skills(query=None):
+    """Search available skills in repository."""
+    print("🔍 Available Skills:")
+    print("-" * 40)
+    
+    # Known skills (in order)
+    free_skills = [
+        "file-organizer",
+        "pdf-toolkit",
+        "text-formatter",
+        "qr-generator",
+        "system-monitor",
+        "website-checker",
+        "csv-converter",
+        "image-resizer",
+        "password-generator",
+        "markdown-converter",
+    ]
+    
+    pro_skills = [
+        "lead-capture",
+    ]
+    
+    installed = get_installed_skills()
+    
+    print("\n🎁 Free Skills:")
+    for skill in free_skills:
+        status = "✅" if skill in installed else "  "
+        print(f"  {status} {skill}")
+    
+    print("\n💎 Pro Skills (subscription required):")
+    for skill in pro_skills:
+        status = "✅" if skill in installed else "  "
+        print(f"  {status} {skill}")
+    
+    print("")
+    print("Install a skill:")
+    print("  smf install <skill-name>")
+
+def login():
+    """Authenticate for Pro skills."""
+    # Check if auth file exists
+    auth_script = Path(__file__).parent / "smf_login.py"
+    if auth_script.exists():
+        subprocess.call([sys.executable, str(auth_script), "login"])
+    else:
+        print("🔐 SMF Works Login")
+        print("=" * 40)
+        print("")
+        print("To get your token:")
+        print("1. Visit: https://smf.works/dashboard")
+        print("2. Sign in with your account")
+        print("3. Copy your API token")
+        print("")
+        token = input("Paste your SMF token: ").strip()
+        
+        if token:
+            token_file = SMF_DIR / "token"
+            token_file.write_text(token)
+            token_file.chmod(0o600)
+            print("✅ Token saved.")
+
+def logout():
+    """Remove authentication."""
+    token_file = SMF_DIR / "token"
+    if token_file.exists():
+        token_file.unlink()
+        print("✅ Logged out. Token removed.")
+    else:
+        print("ℹ️  Not logged in.")
+
+def status():
+    """Show subscription status."""
+    token_file = SMF_DIR / "token"
+    
+    if not token_file.exists():
+        print("❌ Not logged in")
+        print("   Run: smf login")
+        return
+    
+    print("🔐 SMF Works Status")
+    print("-" * 40)
+    
+    # Try to decode token
+    try:
+        import base64
+        token = token_file.read_text().strip()
+        parts = token.split('.')
+        if len(parts) == 3:
+            payload_b64 = parts[1]
+            padding = 4 - len(payload_b64) % 4
+            if padding != 4:
+                payload_b64 += '=' * padding
+            payload_json = base64.urlsafe_b64decode(payload_b64)
+            payload = json.loads(payload_json)
+            
+            print(f"✅ Subscription active")
+            print(f"   Tier: {payload.get('tier', 'unknown')}")
+            
+            # Check expiration
+            exp = payload.get('exp')
+            if exp:
+                from datetime import datetime
+                exp_date = datetime.fromtimestamp(exp)
+                print(f"   Expires: {exp_date.strftime('%Y-%m-%d')}")
+    except:
+        print("⚠️  Token exists but couldn't parse")
+
+def update_skills():
+    """Update all installed skills."""
+    installed = get_installed_skills()
+    
+    if not installed:
+        print("No skills installed.")
+        return
+    
+    print(f"🔄 Updating {len(installed)} skill(s)...")
+    
+    for skill in installed:
+        print(f"  Updating {skill}...")
+        install_skill(skill)
+    
+    print("✅ All skills updated.")
+
+def show_help():
+    """Show help message."""
+    print("""SMF Works Skills CLI
+
+Usage:
+  smf install <skill>       Install a skill
+  smf uninstall <skill>    Uninstall a skill
+  smf run <skill> [args]   Run a skill
+  smf list                 List installed skills
+  smf search               Search available skills
+  smf login                Authenticate for Pro skills
+  smf logout               Remove authentication
+  smf status               Show subscription status
+  smf update               Update all skills
+  smf help                 Show this help
+
+Examples:
+  smf install file-organizer
+  smf run file-organizer organize-date ~/Downloads
+  smf search
+  smf login
+
+Free Skills (no subscription):
+  file-organizer, pdf-toolkit, text-formatter, qr-generator,
+  system-monitor, website-checker, csv-converter, image-resizer,
+  password-generator, markdown-converter
+
+Pro Skills (subscription required):
+  lead-capture
+
+Documentation: https://github.com/smfworks/smfworks-skills
+""")
+
+def main():
+    """Main entry point."""
+    if len(sys.argv) < 2:
+        show_help()
+        return 0
+    
+    command = sys.argv[1]
+    args = sys.argv[2:]
+    
+    commands = {
+        'install': lambda: install_skill(args[0]) if args else (print("Usage: smf install <skill>"), False),
+        'uninstall': lambda: uninstall_skill(args[0]) if args else (print("Usage: smf uninstall <skill>"), False),
+        'run': lambda: run_skill(args[0], args[1:]) if args else (print("Usage: smf run <skill> [args]"), 1),
+        'list': list_skills,
+        'search': lambda: search_skills(args[0] if args else None),
+        'login': login,
+        'logout': logout,
+        'status': status,
+        'update': update_skills,
+        'help': show_help,
+        '--help': show_help,
+        '-h': show_help,
+    }
+    
+    if command in commands:
+        result = commands[command]()
+        if isinstance(result, int):
+            return result
+        return 0
+    else:
+        print(f"Unknown command: {command}")
+        print("Run 'smf help' for usage.")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
