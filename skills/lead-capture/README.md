@@ -100,6 +100,25 @@ This is a **Pro** skill requiring SMF Works subscription ($19.99/mo).
 
 Free users: Use the 5 free skills (File Organizer, PDF Toolkit, etc.)
 
+## Setup & Configuration
+
+**New users:** See [SETUP.md](./SETUP.md) for complete installation and configuration instructions.
+
+### Quick Setup
+
+```bash
+# 1. Subscribe at https://smf.works/subscribe
+# 2. Login
+python ../../cli/smf_login.py login
+# 3. Start capturing leads
+python main.py capture
+```
+
+## Documentation
+
+- [SETUP.md](./SETUP.md) - Complete setup, configuration, and troubleshooting guide
+- [AUTH_SYSTEM.md](../../docs/AUTH_SYSTEM.md) - Authentication system documentation
+
 ## License
 
 SMF Works Pro Skill - See SMF Works Terms of Service
