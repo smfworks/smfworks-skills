@@ -2,6 +2,12 @@
 
 Complete setup instructions for installing, configuring, and using the Lead Capture System.
 
+> **💎 Premium SMF Works Skill**
+> 
+> This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
+> 
+> **$19.99/month** — Subscribe at https://smf.works/subscribe
+
 ---
 
 ## Table of Contents

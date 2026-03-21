@@ -96,9 +96,15 @@ lead-20260320-143052,John Smith,john@example.com,...,Acme Corp,85,2026-03-20T14:
 
 ## Subscription
 
-This is a **Pro** skill requiring SMF Works subscription ($19.99/mo).
+**Lead Capture System is a premium SMF Works skill.**
 
-Free users: Use the 5 free skills (File Organizer, PDF Toolkit, etc.)
+This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
+
+- **Price:** $19.99/month (locked forever at signup rate)
+- **Includes:** All premium skills, future updates, priority support
+- **Free alternative:** Use the 5 free skills (File Organizer, PDF Toolkit, QR Generator, Text Formatter, System Info)
+
+Subscribe at https://smf.works/subscribe
 
 ## Setup & Configuration
 
