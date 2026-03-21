@@ -2,7 +2,7 @@
 
 A curated collection of productivity skills for OpenClaw — from everyday utilities to business automation tools.
 
-**20 Skills Total:** 10 Free (forever) + 10 Pro (subscription)
+**21 Skills Total:** 11 Free (forever) + 10 Pro (subscription)
 
 ---
 
@@ -22,7 +22,7 @@ smf run file-organizer organize-date ~/Downloads
 
 ---
 
-## 🎁 Free Skills (10)
+## 🎁 Free Skills (11)
 
 No subscription required. No auth needed. Just works.
 
@@ -38,6 +38,7 @@ No subscription required. No auth needed. Just works.
 | 8 | **Image Resizer** | Resize, compress, convert, batch process images | `smf install image-resizer` |
 | 9 | **Password Generator** | Strong passwords, passphrases, strength check | `smf install password-generator` |
 | 10 | **Markdown Converter** | Convert Markdown to HTML, text, extract TOC | `smf install markdown-converter` |
+| 11 | **Daily News Digest** | Curated news delivered daily to your interests | `smf install daily-news-digest` |
 
 ---
 
@@ -193,6 +194,9 @@ smfworks-skills/
 - **Email Campaign** — Send newsletters, track opens
 - **Database Backup** — Automated DB backups
 - **Self-Improvement** — Log errors and learnings
+
+### News & Information
+- **Daily News Digest** — Curated news delivered daily (requires NewsAPI key)
 
 ---
 
