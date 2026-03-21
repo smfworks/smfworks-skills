@@ -58,10 +58,13 @@ DEFAULT_CONFIG = {
 def load_config():
     config_path = os.path.expanduser("~/.config/smf/skills/claw-system-backup/config.json")
     if os.path.exists(config_path):
-        with open(config_path) as f:
-            config = DEFAULT_CONFIG.copy()
-            config.update(json.load(f))
-            return config
+        try:
+            with open(config_path) as f:
+                config = DEFAULT_CONFIG.copy()
+                config.update(json.load(f))
+                return config
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"⚠️  Config error, using defaults: {e}", file=sys.stderr)
     return DEFAULT_CONFIG.copy()
 
 
@@ -78,6 +81,17 @@ def check_root():
     return os.geteuid() == 0
 
 
+def check_disk_space(path, required_gb=1):
+    """Check if sufficient disk space is available."""
+    try:
+        stat = os.statvfs(path)
+        available_gb = (stat.f_frsize * stat.f_bavail) / (1024 ** 3)
+        return available_gb >= required_gb, available_gb
+    except Exception as e:
+        print(f"⚠️  Could not check disk space: {e}", file=sys.stderr)
+        return True, 0  # Assume OK if we can't check
+
+
 def get_disk_usage(path):
     """Get disk usage for a path."""
     try:
@@ -90,15 +104,17 @@ def get_disk_usage(path):
         if result.returncode == 0:
             size = int(result.stdout.split()[0])
             return size
-    except Exception:
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, ValueError):
         pass
     return 0
 
 
 def format_size(size_bytes):
     """Format bytes to human readable."""
+    if size_bytes == 0:
+        return "0 B"
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if size_bytes < 1024:
+        if abs(size_bytes) < 1024:
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024
     return f"{size_bytes:.2f} PB"
@@ -109,28 +125,49 @@ def create_backup(config, test_mode=False):
     if not test_mode and not require_subscription():
         return None
     
+    # Check root status
     if not check_root():
         print("⚠️  Warning: Not running as root. Some files may not be accessible.")
         print("   For full system backup, run with: sudo smf run claw-system-backup")
         print()
+        # Don't proceed without root for system backup
+        response = input("Continue anyway? Files may be inaccessible (yes/no): ").strip().lower()
+        if response != 'yes':
+            print("❌ Backup cancelled - root access required")
+            return None
     
     backup_dir = os.path.expanduser(config.get('backup_dir', '~/.smf/system-backups'))
+    
+    # Check disk space before starting
+    has_space, available = check_disk_space(backup_dir, required_gb=5)
+    if not has_space:
+        print(f"❌ Insufficient disk space: {format_size(available * 1024 ** 3)} available")
+        print("   At least 5 GB recommended for system backup")
+        return None
+    
     os.makedirs(backup_dir, exist_ok=True)
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    hostname = subprocess.run(['hostname'], capture_output=True, text=True).stdout.strip() or 'system'
+    
+    try:
+        result = subprocess.run(['hostname'], capture_output=True, text=True, timeout=5)
+        hostname = result.stdout.strip() or 'system'
+    except Exception:
+        hostname = 'system'
     
     backup_type = config.get('backup_type', 'incremental')
     compression = config.get('compression', 'gzip')
     
     # Determine archive name
-    ext = {'gzip': '.tar.gz', 'bzip2': '.tar.bz2', 'xz': '.tar.xz', 'none': '.tar'}.get(compression, '.tar.gz')
+    ext_map = {'gzip': '.tar.gz', 'bzip2': '.tar.bz2', 'xz': '.tar.xz', 'none': '.tar'}
+    ext = ext_map.get(compression, '.tar.gz')
     backup_name = f"{hostname}_{backup_type}_{timestamp}{ext}"
     backup_path = os.path.join(backup_dir, backup_name)
     
     print(f"💾 Claw System Backup")
     print(f"   Type: {backup_type}")
     print(f"   Destination: {backup_path}")
+    print(f"   Available space: {format_size(available * 1024 ** 3) if available else 'unknown'}")
     print()
     
     # Build tar command
@@ -187,18 +224,25 @@ def create_backup(config, test_mode=False):
     print()
     
     try:
-        # Run tar
+        # Run tar with progress
         tar_cmd.extend(backup_sources)
         
         print("📦 Creating backup (this may take several minutes)...")
+        print("   (Progress shown as files are processed)")
+        
+        # Use verbose mode to show progress
         result = subprocess.run(
             tar_cmd,
-            capture_output=True,
-            text=True
+            capture_output=False,
+            text=True,
+            timeout=3600  # 1 hour timeout
         )
         
         if result.returncode != 0:
-            print(f"❌ Backup failed: {result.stderr}", file=sys.stderr)
+            if result.stderr:
+                print(f"❌ Backup failed: {result.stderr}", file=sys.stderr)
+            else:
+                print("❌ Backup failed with unknown error", file=sys.stderr)
             return None
         
         # Get backup size
@@ -210,14 +254,28 @@ def create_backup(config, test_mode=False):
             print(f"   Size: {format_size(size)}")
             print(f"   Location: {backup_path}")
             
+            # Verify backup if enabled
+            if config.get('verify', True):
+                print("\n🔍 Verifying backup integrity...")
+                verify_result = verify_backup(backup_path, compression)
+                if verify_result['success']:
+                    print(f"   ✓ Verified: {verify_result.get('files', 'unknown')} files/directories")
+                else:
+                    print(f"   ⚠️  Verification warning: {verify_result.get('error')}")
+            
             # Create info file
             info_path = backup_path + '.info'
-            with open(info_path, 'w') as f:
-                f.write(f"Backup: {backup_name}\n")
-                f.write(f"Type: {backup_type}\n")
-                f.write(f"Created: {datetime.now().isoformat()}\n")
-                f.write(f"Size: {format_size(size)}\n")
-                f.write(f"Sources: {', '.join(backup_sources)}\n")
+            try:
+                with open(info_path, 'w') as f:
+                    f.write(f"Backup: {backup_name}\n")
+                    f.write(f"Type: {backup_type}\n")
+                    f.write(f"Created: {datetime.now().isoformat()}\n")
+                    f.write(f"Size: {format_size(size)}\n")
+                    f.write(f"Sources: {', '.join(backup_sources)}\n")
+                    if not check_root():
+                        f.write(f"Note: Backup created without root access\n")
+            except IOError as e:
+                print(f"⚠️  Could not create info file: {e}")
             
             return {
                 'name': backup_name,
@@ -227,9 +285,48 @@ def create_backup(config, test_mode=False):
                 'timestamp': datetime.now().isoformat()
             }
     
+    except subprocess.TimeoutExpired:
+        print("\n❌ Backup timed out (exceeded 1 hour)", file=sys.stderr)
+        return None
     except Exception as e:
         print(f"\n❌ Backup failed: {e}", file=sys.stderr)
         return None
+
+
+def verify_backup(backup_path, compression):
+    """Verify backup integrity."""
+    try:
+        # Determine test flag based on compression
+        if compression == 'gzip':
+            test_cmd = ['tar', '-tzf', backup_path]
+        elif compression == 'bzip2':
+            test_cmd = ['tar', '-tjf', backup_path]
+        elif compression == 'xz':
+            test_cmd = ['tar', '-tJf', backup_path]
+        else:
+            test_cmd = ['tar', '-tf', backup_path]
+        
+        result = subprocess.run(
+            test_cmd,
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        
+        if result.returncode == 0:
+            file_count = len([l for l in result.stdout.split('\n') if l.strip()])
+            return {
+                "success": True,
+                "files": file_count,
+                "message": "Backup verified"
+            }
+        else:
+            return {"success": False, "error": result.stderr or "Unknown verification error"}
+    
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Verification timed out"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 def list_backups(config):
@@ -244,14 +341,17 @@ def list_backups(config):
     for item in os.listdir(backup_dir):
         if item.endswith(('.tar', '.tar.gz', '.tar.bz2', '.tar.xz')):
             path = os.path.join(backup_dir, item)
-            stat = os.stat(path)
-            
-            backups.append({
-                'name': item,
-                'path': path,
-                'size': stat.st_size,
-                'created': datetime.fromtimestamp(stat.st_mtime)
-            })
+            try:
+                stat = os.stat(path)
+                
+                backups.append({
+                    'name': item,
+                    'path': path,
+                    'size': stat.st_size,
+                    'created': datetime.fromtimestamp(stat.st_mtime)
+                })
+            except OSError as e:
+                print(f"⚠️  Could not read {item}: {e}")
     
     backups.sort(key=lambda x: x['created'], reverse=True)
     return backups
@@ -280,43 +380,6 @@ def cleanup_old_backups(config):
     return removed
 
 
-def verify_backup(backup_path):
-    """Verify backup archive integrity."""
-    print(f"\n🔍 Verifying backup: {os.path.basename(backup_path)}")
-    
-    try:
-        # Determine compression and use appropriate test flag
-        if backup_path.endswith('.gz'):
-            test_cmd = ['tar', '-tzf', backup_path]
-        elif backup_path.endswith('.bz2'):
-            test_cmd = ['tar', '-tjf', backup_path]
-        elif backup_path.endswith('.xz'):
-            test_cmd = ['tar', '-tJf', backup_path]
-        else:
-            test_cmd = ['tar', '-tf', backup_path]
-        
-        result = subprocess.run(
-            test_cmd,
-            capture_output=True,
-            text=True,
-            timeout=300
-        )
-        
-        if result.returncode == 0:
-            # Count files
-            file_count = len(result.stdout.strip().split('\n'))
-            print(f"   ✅ Backup verified successfully")
-            print(f"   Contains {file_count} files/directories")
-            return True
-        else:
-            print(f"   ❌ Backup verification failed: {result.stderr}")
-            return False
-    
-    except Exception as e:
-        print(f"   ❌ Verification error: {e}")
-        return False
-
-
 def restore_backup(backup_path, target_dir=None, test_mode=False):
     """Restore from system backup."""
     if not test_mode and not require_subscription():
@@ -343,7 +406,7 @@ def restore_backup(backup_path, target_dir=None, test_mode=False):
         return False
     
     try:
-        # Build extraction command
+        # Determine compression and use appropriate extract flag
         if backup_path.endswith('.gz'):
             tar_cmd = ['tar', '-xzf', backup_path, '-C', target_dir]
         elif backup_path.endswith('.bz2'):
@@ -387,6 +450,13 @@ def configure():
     path = input(f"Backup directory [{current}]: ").strip()
     if path:
         config['backup_dir'] = path
+    
+    # Check disk space for chosen directory
+    expanded_path = os.path.expanduser(config['backup_dir'])
+    has_space, available = check_disk_space(expanded_path, required_gb=1)
+    print(f"   Available space: {format_size(available * 1024 ** 3)}")
+    if not has_space:
+        print("⚠️  Warning: Low disk space available")
     
     print("\nStep 2: Backup Type")
     print("  full        - Complete system backup (requires root)")
@@ -473,7 +543,12 @@ Note: Full system backups require root/sudo access.
         return
     
     if args.verify:
-        verify_backup(args.verify)
+        compression = config.get('compression', 'gzip')
+        result = verify_backup(args.verify, compression)
+        if result['success']:
+            print(f"✅ Verification passed: {result.get('files', 'N/A')} items")
+        else:
+            print(f"❌ Verification failed: {result.get('error')}")
         return
     
     if args.restore:
@@ -497,9 +572,6 @@ Note: Full system backups require root/sudo access.
     
     result = create_backup(config, test_mode=args.test_mode)
     if result:
-        if config.get('verify', True):
-            verify_backup(result['path'])
-        
         print("\n🧹 Cleaning up old backups...")
         cleanup_old_backups(config)
         print("\n✅ Backup complete!")

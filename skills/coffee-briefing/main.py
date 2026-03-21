@@ -9,6 +9,7 @@ Requires: SMF Works Pro Subscription + OpenWeatherMap API key
 import os
 import sys
 import json
+import copy
 import argparse
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -29,6 +30,14 @@ except ImportError:
         if not os.path.exists(token_path):
             print("❌ Pro skill requires SMF Works subscription")
             print("   Subscribe at: https://smf.works/subscribe")
+            return False
+        # Check if token file is non-empty
+        try:
+            with open(token_path, 'r') as f:
+                content = f.read().strip()
+                if not content:
+                    return False
+        except:
             return False
         return True
     
@@ -75,26 +84,45 @@ WEATHER_ICONS = {
 }
 
 
+def deep_merge(base: dict, override: dict) -> dict:
+    """Deep merge two dictionaries."""
+    result = copy.deepcopy(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def load_config(config_path: Optional[str] = None) -> Dict:
     """Load configuration from file or return defaults."""
+    config = DEFAULT_CONFIG.copy()
+    
     if config_path and os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-            # Merge with defaults
-            merged = DEFAULT_CONFIG.copy()
-            merged.update(config)
-            return merged
+        try:
+            with open(config_path, 'r') as f:
+                user_config = json.load(f)
+                config = deep_merge(config, user_config)
+        except json.JSONDecodeError as e:
+            print(f"⚠️  Config file malformed, using defaults: {e}", file=sys.stderr)
+        except OSError as e:
+            print(f"⚠️  Could not read config: {e}", file=sys.stderr)
+        return config
     
     # Check for config in standard location
     standard_config = os.path.expanduser("~/.config/smf/skills/coffee-briefing/config.json")
     if os.path.exists(standard_config):
-        with open(standard_config, 'r') as f:
-            config = json.load(f)
-            merged = DEFAULT_CONFIG.copy()
-            merged.update(config)
-            return merged
+        try:
+            with open(standard_config, 'r') as f:
+                user_config = json.load(f)
+                config = deep_merge(config, user_config)
+        except json.JSONDecodeError as e:
+            print(f"⚠️  Config file malformed, using defaults: {e}", file=sys.stderr)
+        except OSError as e:
+            print(f"⚠️  Could not read config: {e}", file=sys.stderr)
     
-    return DEFAULT_CONFIG.copy()
+    return config
 
 
 def save_config(config: Dict, config_path: str):
@@ -106,13 +134,34 @@ def save_config(config: Dict, config_path: str):
     os.chmod(config_path, 0o600)
 
 
+def validate_path_within_bounds(file_path: str, allowed_base: str = None) -> Optional[str]:
+    """Validate file path is within allowed directory."""
+    if not file_path:
+        return None
+    
+    resolved = os.path.realpath(os.path.expanduser(file_path))
+    if allowed_base:
+        allowed_base_resolved = os.path.realpath(os.path.expanduser(allowed_base))
+        if not resolved.startswith(allowed_base_resolved + os.sep) and resolved != allowed_base_resolved:
+            return None
+    return resolved
+
+
 def fetch_weather(api_key: str, lat: float, lon: float, units: str = "imperial") -> Optional[Dict]:
     """Fetch current weather from OpenWeatherMap."""
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units={units}"
-    
+    # Use proper SSL verification
     ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
+    
+    # Build URL with parameters
+    params = {
+        'lat': lat,
+        'lon': lon,
+        'appid': api_key,
+        'units': units
+    }
+    from urllib.parse import urlencode
+    query_string = urlencode(params)
+    url = f"https://api.openweathermap.org/data/2.5/weather?{query_string}"
     
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'SMF-CoffeeBriefing/1.0'})
@@ -124,8 +173,19 @@ def fetch_weather(api_key: str, lat: float, lon: float, units: str = "imperial")
         else:
             print(f"❌ Weather API error: HTTP {e.code}", file=sys.stderr)
         return None
+    except urllib.error.URLError as e:
+        print(f"❌ Network error: {e.reason}", file=sys.stderr)
+        return None
+    except json.JSONDecodeError:
+        print("❌ Invalid weather API response", file=sys.stderr)
+        return None
+    except TimeoutError:
+        print("❌ Weather request timed out", file=sys.stderr)
+        return None
     except Exception as e:
-        print(f"❌ Weather fetch error: {e}", file=sys.stderr)
+        # Redact API key from error messages
+        safe_error = str(e).replace(api_key, "***REDACTED***")
+        print(f"❌ Weather fetch error: {safe_error}", file=sys.stderr)
         return None
 
 
@@ -158,7 +218,8 @@ def format_weather(weather_data: Dict, units: str) -> str:
         
         return "\n".join(lines)
     except KeyError as e:
-        return f"🌤️ Weather data incomplete"
+        print(f"⚠️  Warning: Missing weather field: {e}", file=sys.stderr)
+        return "🌤️ Weather data incomplete"
 
 
 def extract_priorities(config: Dict) -> List[str]:
@@ -170,9 +231,10 @@ def extract_priorities(config: Dict) -> List[str]:
     
     if source == 'file':
         file_path = config.get('priorities', {}).get('file_path', '')
-        if file_path and os.path.exists(file_path):
+        validated_path = validate_path_within_bounds(file_path, Path.home())
+        if validated_path and os.path.exists(validated_path):
             try:
-                with open(file_path, 'r') as f:
+                with open(validated_path, 'r') as f:
                     content = f.read()
                     # Extract lines starting with numbers or dashes
                     for line in content.split('\n'):
@@ -183,7 +245,7 @@ def extract_priorities(config: Dict) -> List[str]:
                                 priorities.append(clean)
                                 if len(priorities) >= max_p:
                                     break
-            except Exception as e:
+            except OSError as e:
                 print(f"Warning: Could not read priorities file: {e}", file=sys.stderr)
     
     # Default priorities if none found
@@ -304,7 +366,12 @@ def configure_skill():
     if source == 'file':
         file_path = input("Path to priorities file: ").strip()
         if file_path:
-            config['priorities']['file_path'] = os.path.expanduser(file_path)
+            validated = validate_path_within_bounds(file_path, Path.home())
+            if validated:
+                config['priorities']['file_path'] = os.path.expanduser(file_path)
+            else:
+                print("⚠️  Path outside home directory, using auto mode instead")
+                config['priorities']['source'] = 'auto'
     
     # Step 4: Schedule info
     print("\nStep 4: Schedule")

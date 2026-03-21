@@ -13,9 +13,12 @@ Usage:
 import sys
 import json
 import uuid
-import csv
+import hmac
+import hashlib
+import secrets
+import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
@@ -31,15 +34,55 @@ SKILL_NAME = "form-builder"
 MIN_TIER = "pro"
 FORMS_DIR = Path.home() / ".smf" / "forms"
 RESPONSES_DIR = Path.home() / ".smf" / "form-responses"
+CONFIG_FILE = Path.home() / ".smf" / "form-config.json"
 
 # Field types
 FIELD_TYPES = ["text", "email", "number", "textarea", "select", "checkbox", "radio", "date", "tel", "url"]
+
+# Security
+CSRF_TOKEN_HEADER = "X-CSRF-Token"
+MAX_FIELD_COUNT = 50
+MAX_RESPONSE_SIZE = 1024 * 1024  # 1MB
 
 
 def ensure_dirs():
     """Ensure form directories exist."""
     FORMS_DIR.mkdir(parents=True, exist_ok=True)
     RESPONSES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def generate_csrf_secret():
+    """Generate a CSRF secret for the server."""
+    if not CONFIG_FILE.exists():
+        secret = secrets.token_hex(32)
+        CONFIG_FILE.write_text(json.dumps({"csrf_secret": secret}))
+        return secret
+    
+    try:
+        config = json.loads(CONFIG_FILE.read_text())
+        return config.get("csrf_secret", secrets.token_hex(32))
+    except:
+        return secrets.token_hex(32)
+
+
+def generate_csrf_token(secret: str, form_id: str) -> str:
+    """Generate a CSRF token for a form."""
+    timestamp = datetime.now().strftime("%Y%m%d%H")
+    data = f"{form_id}:{timestamp}"
+    return hmac.new(secret.encode(), data.encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def verify_csrf_token(token: str, secret: str, form_id: str) -> bool:
+    """Verify a CSRF token."""
+    # Check current hour and previous hour (allow 1 hour drift)
+    for hour_offset in [0, -1]:
+        check_time = datetime.now() + timedelta(hours=hour_offset)
+        timestamp = check_time.strftime("%Y%m%d%H")
+        data = f"{form_id}:{timestamp}"
+        expected = hmac.new(secret.encode(), data.encode(), hashlib.sha256).hexdigest()[:32]
+        if hmac.compare_digest(token, expected):
+            return True
+    return False
 
 
 def generate_form_id() -> str:
@@ -52,22 +95,95 @@ def generate_response_id() -> str:
     return f"RESP-{uuid.uuid4().hex[:8].upper()}"
 
 
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename to prevent path traversal."""
+    return re.sub(r'[^\w\-_.]', '_', filename)
+
+
+def validate_field_name(name: str) -> bool:
+    """Validate field name is safe."""
+    if not name or len(name) > 100:
+        return False
+    # Allow alphanumeric, underscore, hyphen
+    return bool(re.match(r'^[a-zA-Z0-9_-]+$', name))
+
+
+def validate_response_data(data: Dict, fields: List[Dict]) -> tuple[bool, str]:
+    """Validate submitted response data."""
+    # Check total size
+    data_size = len(json.dumps(data))
+    if data_size > MAX_RESPONSE_SIZE:
+        return False, "Response too large"
+    
+    allowed_fields = {f["name"] for f in fields}
+    
+    # Check for unexpected fields
+    for key in data.keys():
+        if key not in allowed_fields and key != "csrf_token":
+            return False, f"Unexpected field: {key}"
+    
+    # Validate each field
+    for field in fields:
+        field_name = field.get("name")
+        value = data.get(field_name, "")
+        field_type = field.get("type", "text")
+        required = field.get("required", False)
+        
+        if required and not value:
+            return False, f"Required field missing: {field_name}"
+        
+        if value:
+            # Type validation
+            if field_type == "email":
+                if not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', value):
+                    return False, f"Invalid email in {field_name}"
+            elif field_type == "number":
+                try:
+                    float(value)
+                except ValueError:
+                    return False, f"Invalid number in {field_name}"
+            elif field_type == "url":
+                if not re.match(r'^https?://[^\s]+$', value):
+                    return False, f"Invalid URL in {field_name}"
+            elif field_type == "tel":
+                # Basic phone validation
+                if not re.match(r'^[\d\s\-\+\(\)]+$', value):
+                    return False, f"Invalid phone in {field_name}"
+    
+    return True, "OK"
+
+
 def create_form(name: str, description: str = "", fields: List[Dict] = None) -> Dict:
-    """Create a new form."""
+    """Create a new form with validation."""
     try:
         ensure_dirs()
+        
+        # Validate name
+        if not name or len(name) > 200:
+            return {"success": False, "error": "Name required (max 200 chars)"}
+        
+        # Validate field count
+        if fields and len(fields) > MAX_FIELD_COUNT:
+            return {"success": False, "error": f"Maximum {MAX_FIELD_COUNT} fields allowed"}
+        
+        # Validate field names
+        if fields:
+            for field in fields:
+                if not validate_field_name(field.get("name", "")):
+                    return {"success": False, "error": f"Invalid field name: {field.get('name')}"}
         
         form_id = generate_form_id()
         
         form = {
             "id": form_id,
-            "name": name,
-            "description": description,
+            "name": name.strip(),
+            "description": description[:500] if description else "",  # Limit length
             "fields": fields or [],
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
             "status": "active",
-            "response_count": 0
+            "response_count": 0,
+            "auth_required": False  # For future auth feature
         }
         
         # Save form
@@ -85,12 +201,15 @@ def create_form(name: str, description: str = "", fields: List[Dict] = None) -> 
 
 
 def load_form(form_id: str) -> Optional[Dict]:
-    """Load form by ID."""
-    form_file = FORMS_DIR / f"{form_id}.json"
+    """Load form by ID with sanitization."""
+    # Sanitize form_id
+    safe_id = sanitize_filename(form_id)
+    form_file = FORMS_DIR / f"{safe_id}.json"
+    
     if form_file.exists():
         try:
             return json.loads(form_file.read_text())
-        except:
+        except (json.JSONDecodeError, IOError):
             pass
     return None
 
@@ -104,7 +223,7 @@ def load_forms() -> List[Dict]:
         try:
             form = json.loads(form_file.read_text())
             forms.append(form)
-        except:
+        except (json.JSONDecodeError, IOError):
             continue
     
     # Sort by creation date
@@ -138,9 +257,16 @@ def add_field(form_id: str, field: Dict) -> Dict:
     if not form:
         return {"success": False, "error": "Form not found"}
     
+    # Check field limit
+    if len(form.get("fields", [])) >= MAX_FIELD_COUNT:
+        return {"success": False, "error": f"Maximum {MAX_FIELD_COUNT} fields reached"}
+    
     # Validate field
     if "name" not in field or "type" not in field:
         return {"success": False, "error": "Field must have name and type"}
+    
+    if not validate_field_name(field["name"]):
+        return {"success": False, "error": f"Invalid field name: {field['name']}"}
     
     if field["type"] not in FIELD_TYPES:
         return {"success": False, "error": f"Invalid field type. Use: {', '.join(FIELD_TYPES)}"}
@@ -160,8 +286,8 @@ def add_field(form_id: str, field: Dict) -> Dict:
     return {"success": True, "form": form}
 
 
-def submit_response(form_id: str, data: Dict) -> Dict:
-    """Submit a form response."""
+def submit_response(form_id: str, data: Dict, client_ip: str = None) -> Dict:
+    """Submit a form response with validation."""
     form = load_form(form_id)
     if not form:
         return {"success": False, "error": "Form not found"}
@@ -169,17 +295,33 @@ def submit_response(form_id: str, data: Dict) -> Dict:
     if form.get("status") != "active":
         return {"success": False, "error": "Form is not accepting responses"}
     
+    # Validate data
+    valid, message = validate_response_data(data, form.get("fields", []))
+    if not valid:
+        return {"success": False, "error": message}
+    
     try:
         ensure_dirs()
         
         response_id = generate_response_id()
         
+        # Sanitize submitted data
+        safe_data = {}
+        for key, value in data.items():
+            if key == "csrf_token":
+                continue  # Don't store CSRF token
+            if isinstance(value, str):
+                # Basic XSS prevention
+                value = value.replace('<', '&lt;').replace('>', '&gt;')
+            safe_data[key] = value
+        
         response = {
             "id": response_id,
             "form_id": form_id,
-            "data": data,
+            "data": safe_data,
             "submitted_at": datetime.now().isoformat(),
-            "ip_address": None  # Could capture if needed
+            "ip_address": client_ip,
+            "user_agent": None  # Could capture if needed
         }
         
         # Save response
@@ -211,7 +353,7 @@ def load_responses(form_id: str = None) -> List[Dict]:
                 continue
             
             responses.append(response)
-        except:
+        except (json.JSONDecodeError, IOError):
             continue
     
     # Sort by date
@@ -221,17 +363,17 @@ def load_responses(form_id: str = None) -> List[Dict]:
 
 def get_response(response_id: str) -> Optional[Dict]:
     """Get specific response."""
-    response_file = RESPONSES_DIR / f"{response_id}.json"
+    response_file = RESPONSES_DIR / f"{sanitize_filename(response_id)}.json"
     if response_file.exists():
         try:
             return json.loads(response_file.read_text())
-        except:
+        except (json.JSONDecodeError, IOError):
             pass
     return None
 
 
 def export_responses(form_id: str, format: str = "csv", output_file: str = None) -> Dict:
-    """Export form responses."""
+    """Export form responses with path validation."""
     form = load_form(form_id)
     if not form:
         return {"success": False, "error": "Form not found"}
@@ -250,25 +392,45 @@ def export_responses(form_id: str, format: str = "csv", output_file: str = None)
             if not output_file:
                 output_file = f"{form_id}-responses.csv"
             
-            with open(output_file, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=headers)
+            # Validate output path
+            output_path = Path(output_file).resolve()
+            cwd = Path.cwd().resolve()
+            try:
+                output_path.relative_to(cwd)
+            except ValueError:
+                return {"success": False, "error": "Output path must be within current directory"}
+            
+            import csv
+            with open(output_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=headers, extrasaction='ignore')
                 writer.writeheader()
                 
                 for response in responses:
                     row = response["data"].copy()
                     row["submitted_at"] = response.get("submitted_at", "")
+                    # Sanitize for CSV injection prevention
+                    for key, value in row.items():
+                        if value and str(value).startswith(('=', '+', '-', '@', '\t', '\r')):
+                            row[key] = "'" + str(value)
                     writer.writerow(row)
             
-            return {"success": True, "file": output_file, "count": len(responses)}
+            return {"success": True, "file": str(output_path), "count": len(responses)}
         
         elif format == "json":
             if not output_file:
                 output_file = f"{form_id}-responses.json"
             
-            with open(output_file, 'w') as f:
+            output_path = Path(output_file).resolve()
+            cwd = Path.cwd().resolve()
+            try:
+                output_path.relative_to(cwd)
+            except ValueError:
+                return {"success": False, "error": "Output path must be within current directory"}
+            
+            with open(output_path, 'w') as f:
                 json.dump(responses, f, indent=2)
             
-            return {"success": True, "file": output_file, "count": len(responses)}
+            return {"success": True, "file": str(output_path), "count": len(responses)}
         
         else:
             return {"success": False, "error": f"Unsupported format: {format}"}
@@ -277,8 +439,8 @@ def export_responses(form_id: str, format: str = "csv", output_file: str = None)
         return {"success": False, "error": str(e)}
 
 
-def generate_html_form(form: Dict, action_url: str = "#") -> str:
-    """Generate HTML form."""
+def generate_html_form(form: Dict, action_url: str = "#", csrf_token: str = "") -> str:
+    """Generate HTML form with CSRF protection."""
     fields_html = ""
     
     for field in form.get("fields", []):
@@ -287,6 +449,7 @@ def generate_html_form(form: Dict, action_url: str = "#") -> str:
         field_label = field.get("label", field_name)
         required = "required" if field.get("required", False) else ""
         placeholder = field.get("placeholder", "")
+        placeholder = placeholder.replace('"', '&quot;')  # Escape quotes
         
         if field_type == "textarea":
             fields_html += f"""
@@ -317,11 +480,28 @@ def generate_html_form(form: Dict, action_url: str = "#") -> str:
                 </label>
             </div>
             """
-        else:
+        elif field_type == "radio":
+            options = field.get("options", [])
+            options_html = ""
+            for opt in options:
+                options_html += f"""
+                <label style="display: block; margin: 5px 0;">
+                    <input type="radio" name="{field_name}" value="{opt}" {required}>
+                    {opt}
+                </label>
+                """
             fields_html += f"""
             <div style="margin-bottom: 15px;">
                 <label style="display: block; margin-bottom: 5px; font-weight: bold;">{field_label}</label>
-                <input type="{field_type}" name="{field_name}" {required} placeholder="{placeholder}"
+                {options_html}
+            </div>
+            """
+        else:
+            input_type = "email" if field_type == "email" else field_type
+            fields_html += f"""
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">{field_label}</label>
+                <input type="{input_type}" name="{field_name}" {required} placeholder="{placeholder}"
                     style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             </div>
             """
@@ -349,6 +529,7 @@ def generate_html_form(form: Dict, action_url: str = "#") -> str:
         {f'<p class="description">{form.get("description")}</p>' if form.get('description') else ''}
         
         <form action="{action_url}" method="POST">
+            <input type="hidden" name="csrf_token" value="{csrf_token}">
             {fields_html}
             <button type="submit">Submit</button>
         </form>
@@ -429,7 +610,7 @@ def display_form_details(form_id: str):
     if form.get('description'):
         print(f"\nDescription: {form['description']}")
     
-    print(f"\nFields:")
+    print(f"\nFields ({len(form.get('fields', []))}):")
     for i, field in enumerate(form.get('fields', []), 1):
         required = " (required)" if field.get('required') else ""
         print(f"  {i}. {field.get('label', field['name'])} [{field['type']}]{required}")
@@ -458,6 +639,10 @@ def interactive_create_form():
         field_name = input("Field name (or blank to finish): ").strip()
         if not field_name:
             break
+        
+        if not validate_field_name(field_name):
+            print("❌ Invalid field name (use alphanumeric, underscore, hyphen)")
+            continue
         
         field_label = input("Label (or blank to use name): ").strip() or field_name
         
@@ -493,6 +678,10 @@ def interactive_create_form():
         
         fields.append(field)
         field_num += 1
+        
+        if len(fields) >= MAX_FIELD_COUNT:
+            print(f"Maximum {MAX_FIELD_COUNT} fields reached")
+            break
     
     if not fields:
         print("❌ At least one field required")
@@ -502,11 +691,17 @@ def interactive_create_form():
 
 
 class FormHandler(BaseHTTPRequestHandler):
-    """HTTP request handler for serving forms."""
+    """HTTP request handler for serving forms with CSRF protection."""
+    
+    csrf_secret = None
     
     def log_message(self, format, *args):
         """Suppress default logging."""
         pass
+    
+    def get_client_ip(self):
+        """Get client IP address."""
+        return self.client_address[0]
     
     def do_GET(self):
         """Handle GET requests."""
@@ -523,8 +718,11 @@ class FormHandler(BaseHTTPRequestHandler):
             self.send_error(404, "Form not found")
             return
         
+        # Generate CSRF token
+        csrf_token = generate_csrf_token(self.csrf_secret, form_id)
+        
         # Generate HTML
-        html = generate_html_form(form, f"/submit/{form_id}")
+        html = generate_html_form(form, f"/submit/{form_id}", csrf_token)
         
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
@@ -532,7 +730,7 @@ class FormHandler(BaseHTTPRequestHandler):
         self.wfile.write(html.encode())
     
     def do_POST(self):
-        """Handle POST requests (form submissions)."""
+        """Handle POST requests (form submissions) with CSRF validation."""
         if not self.path.startswith("/submit/"):
             self.send_error(404, "Not found")
             return
@@ -549,27 +747,42 @@ class FormHandler(BaseHTTPRequestHandler):
             return
         
         # Read form data
-        content_length = int(self.headers.get('Content-Length', 0))
-        post_data = self.rfile.read(content_length).decode()
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length > MAX_RESPONSE_SIZE:
+                self.send_error(413, "Payload too large")
+                return
+            
+            post_data = self.rfile.read(content_length).decode('utf-8')
+        except Exception:
+            self.send_error(400, "Invalid request")
+            return
         
         # Parse form data
         from urllib.parse import parse_qs
-        parsed_data = parse_qs(post_data)
+        parsed_data = parse_qs(post_data, keep_blank_values=True)
         
         # Convert to simple dict
         data = {}
         for key, values in parsed_data.items():
             data[key] = values[0] if len(values) == 1 else values
         
-        # Submit response
-        result = submit_response(form_id, data)
-        
-        if result["success"]:
-            # Send success response
-            self.send_response(200)
+        # Verify CSRF token
+        csrf_token = data.get('csrf_token', '')
+        if not verify_csrf_token(csrf_token, self.csrf_secret, form_id):
+            self.send_response(403)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
-            
+            self.wfile.write(b"<h1>Error</h1><p>Invalid security token. Please refresh the page and try again.</p>")
+            return
+        
+        # Submit response
+        result = submit_response(form_id, data, self.get_client_ip())
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        if result["success"]:
             success_html = """<!DOCTYPE html>
 <html>
 <head><title>Thank You</title></head>
@@ -581,20 +794,24 @@ class FormHandler(BaseHTTPRequestHandler):
 </html>"""
             self.wfile.write(success_html.encode())
         else:
-            self.send_error(400, result.get("error", "Submission failed"))
+            self.wfile.write(f"<h1>Error</h1><p>{result.get('error', 'Submission failed')}</p>".encode())
 
 
 def serve_form(form_id: str, port: int = 8080) -> Dict:
-    """Start HTTP server to serve form."""
+    """Start HTTP server to serve form with security."""
     form = load_form(form_id)
     if not form:
         return {"success": False, "error": "Form not found"}
+    
+    # Initialize CSRF secret
+    FormHandler.csrf_secret = generate_csrf_secret()
     
     try:
         server = HTTPServer(('localhost', port), FormHandler)
         
         print(f"\n🌐 Serving form '{form.get('name', form_id)}'")
         print(f"   URL: http://localhost:{port}/{form_id}")
+        print(f"   CSRF Protection: Enabled")
         print(f"   Press Ctrl+C to stop\n")
         
         try:
@@ -626,6 +843,12 @@ Commands:
   export FORM-ID               Export to CSV/JSON
   help                         Show this help
 
+Security Features:
+  • CSRF protection on all form submissions
+  • XSS prevention on submitted data
+  • CSV injection prevention on exports
+  • Input validation on all fields
+
 Field Types:
   text, email, number, textarea, select, checkbox, radio, date, tel, url
 
@@ -637,9 +860,9 @@ Examples:
   smf run form-builder export FORM-ABC123 --format csv
 
 Serving Forms:
-  The 'serve' command starts a local web server.
+  The 'serve' command starts a local web server with CSRF protection.
   Access the form at: http://localhost:8080/FORM-ID
-  Submissions are saved automatically.
+  Submissions are validated and saved automatically.
 """)
 
 
@@ -681,7 +904,9 @@ def main():
                 f_idx = args.index("--fields")
                 if f_idx + 1 < len(args):
                     field_names = args[f_idx + 1].split(",")
-                    fields = [{"name": fn, "type": "text", "label": fn.title()} for fn in field_names]
+                    for fn in field_names:
+                        if validate_field_name(fn):
+                            fields.append({"name": fn, "type": "text", "label": fn.title()})
             
             result = create_form(name, "", fields)
         else:
@@ -720,6 +945,10 @@ def main():
         field_name = input("Field name: ").strip()
         if not field_name:
             print("❌ Field name required")
+            return 1
+        
+        if not validate_field_name(field_name):
+            print("❌ Invalid field name (use alphanumeric, underscore, hyphen)")
             return 1
         
         field_label = input("Label: ").strip() or field_name

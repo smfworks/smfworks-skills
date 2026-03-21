@@ -7,8 +7,47 @@ Convert between CSV, JSON, and Excel formats.
 import csv
 import json
 import sys
+import re
 from pathlib import Path
 from typing import Dict, List
+
+
+def _validate_path(path: str, must_exist: bool = False) -> Path:
+    """
+    Validate and resolve a file path, preventing path traversal attacks.
+    
+    Args:
+        path: User-provided path
+        must_exist: If True, file must exist
+    
+    Returns:
+        Resolved Path object
+    
+    Raises:
+        ValueError: If path is invalid or attempts traversal
+    """
+    # Resolve to absolute path
+    resolved = Path(path).expanduser().resolve()
+    
+    # Check for path traversal attempts (should stay within current working directory or home)
+    cwd = Path.cwd().resolve()
+    home = Path.home().resolve()
+    
+    path_str = str(resolved)
+    if not (path_str.startswith(str(cwd)) or path_str.startswith(str(home))):
+        raise ValueError(f"Path outside allowed directories: {path}")
+    
+    # Check for suspicious patterns
+    if '..' in path_str.replace(str(Path().absolute().parent), ''):
+        # Additional check for any remaining .. patterns
+        normalized = Path(path_str).resolve()
+        if '..' in str(Path(path).expanduser()):
+            raise ValueError(f"Path contains directory traversal: {path}")
+    
+    if must_exist and not resolved.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+    
+    return resolved
 
 
 def csv_to_json(input_file: str, output_file: str) -> Dict:
@@ -23,8 +62,12 @@ def csv_to_json(input_file: str, output_file: str) -> Dict:
         Dict with operation results
     """
     try:
+        # Validate paths
+        input_path = _validate_path(input_file, must_exist=True)
+        output_path = _validate_path(output_file, must_exist=False)
+        
         data = []
-        with open(input_file, 'r', encoding='utf-8') as f:
+        with open(input_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 data.append(dict(row))
@@ -55,7 +98,11 @@ def json_to_csv(input_file: str, output_file: str) -> Dict:
         Dict with operation results
     """
     try:
-        with open(input_file, 'r', encoding='utf-8') as f:
+        # Validate paths
+        input_path = _validate_path(input_file, must_exist=True)
+        output_path = _validate_path(output_file, must_exist=False)
+        
+        with open(input_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         # Handle both single object and array
@@ -65,9 +112,9 @@ def json_to_csv(input_file: str, output_file: str) -> Dict:
         if not data:
             return {"success": False, "error": "No data found in JSON"}
         
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+        with open(output_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=data[0].keys())
             writer.writeheader()
             writer.writerows(data)
@@ -76,7 +123,7 @@ def json_to_csv(input_file: str, output_file: str) -> Dict:
             "success": True,
             "rows": len(data),
             "columns": len(data[0].keys()),
-            "output": output_file
+            "output": str(output_path)
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -96,7 +143,11 @@ def csv_to_excel(input_file: str, output_file: str) -> Dict:
     try:
         import pandas as pd
         
-        df = pd.read_csv(input_file)
+        # Validate paths
+        input_path = _validate_path(input_file, must_exist=True)
+        output_path = _validate_path(output_file, must_exist=False)
+        
+        df = pd.read_csv(input_path)
         
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
         

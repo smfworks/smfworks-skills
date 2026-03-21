@@ -13,10 +13,11 @@ Usage:
 import sys
 import json
 import uuid
+import html as html_module
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 # Add shared auth to path
 shared_path = Path(__file__).parent.parent.parent / "shared"
@@ -41,6 +42,23 @@ def ensure_dirs():
         CLIENTS_FILE.write_text(json.dumps({"clients": []}, indent=2))
 
 
+def safe_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    """Safely convert value to Decimal."""
+    if value is None:
+        return default
+    
+    if isinstance(value, Decimal):
+        return value
+    
+    try:
+        # Handle currency strings like "$1,234.56"
+        if isinstance(value, str):
+            value = value.replace(',', '').replace('$', '').replace('€', '').replace('£', '').strip()
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return default
+
+
 def generate_invoice_number() -> str:
     """Generate unique invoice number."""
     timestamp = datetime.now().strftime("%Y%m")
@@ -48,16 +66,21 @@ def generate_invoice_number() -> str:
     return f"INV-{timestamp}-{unique}"
 
 
-def format_currency(amount: Decimal, currency: str = "USD") -> str:
-    """Format amount as currency string."""
-    if currency == "USD":
-        return f"${amount:,.2f}"
-    elif currency == "EUR":
-        return f"€{amount:,.2f}"
-    elif currency == "GBP":
-        return f"£{amount:,.2f}"
-    else:
-        return f"{amount:,.2f} {currency}"
+def format_currency(amount: Any, currency: str = "USD") -> str:
+    """Format amount as currency string with proper handling."""
+    try:
+        dec_amount = safe_decimal(amount)
+        
+        if currency == "USD":
+            return f"${dec_amount:,.2f}"
+        elif currency == "EUR":
+            return f"€{dec_amount:,.2f}"
+        elif currency == "GBP":
+            return f"£{dec_amount:,.2f}"
+        else:
+            return f"{dec_amount:,.2f} {currency}"
+    except Exception:
+        return f"${amount}"  # Fallback
 
 
 def load_clients() -> List[Dict]:
@@ -66,14 +89,17 @@ def load_clients() -> List[Dict]:
     try:
         data = json.loads(CLIENTS_FILE.read_text())
         return data.get("clients", [])
-    except:
+    except (json.JSONDecodeError, IOError):
         return []
 
 
 def save_clients(clients: List[Dict]):
     """Save clients list."""
     ensure_dirs()
-    CLIENTS_FILE.write_text(json.dumps({"clients": clients}, indent=2))
+    try:
+        CLIENTS_FILE.write_text(json.dumps({"clients": clients}, indent=2))
+    except IOError as e:
+        print(f"⚠️  Could not save clients: {e}", file=sys.stderr)
 
 
 def get_client(client_name: str) -> Optional[Dict]:
@@ -116,11 +142,11 @@ def create_client(name: str, email: str = "", address: str = "",
 
 
 def create_invoice(client_name: str, items: List[Dict], 
-                   tax_rate: Decimal = Decimal("0"),
-                   discount: Decimal = Decimal("0"),
+                   tax_rate: Any = "0",
+                   discount: Any = "0",
                    notes: str = "", 
                    due_days: int = 30) -> Dict:
-    """Create a new invoice."""
+    """Create a new invoice with proper decimal handling."""
     try:
         ensure_dirs()
         
@@ -134,24 +160,36 @@ def create_invoice(client_name: str, items: List[Dict],
             else:
                 return {"success": False, "error": f"Client not found: {client_name}"}
         
-        # Calculate totals
+        # Convert to safe decimals
+        tax_rate_dec = safe_decimal(tax_rate)
+        discount_dec = safe_decimal(discount)
+        
+        # Calculate totals with proper decimal handling
         subtotal = Decimal("0")
+        processed_items = []
+        
         for item in items:
-            qty = Decimal(str(item.get("quantity", 1)))
-            price = Decimal(str(item.get("unit_price", 0)))
-            item_total = qty * price
-            item["total"] = float(item_total)
+            qty = safe_decimal(item.get("quantity", 1))
+            price = safe_decimal(item.get("unit_price", 0))
+            item_total = (qty * price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            
+            processed_items.append({
+                "description": str(item.get("description", "")),
+                "quantity": float(qty),
+                "unit_price": float(price),
+                "total": float(item_total)
+            })
             subtotal += item_total
         
         # Apply discount
-        discount_amount = subtotal * (discount / Decimal("100"))
+        discount_amount = (subtotal * (discount_dec / Decimal("100"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         after_discount = subtotal - discount_amount
         
         # Calculate tax
-        tax_amount = after_discount * (tax_rate / Decimal("100"))
+        tax_amount = (after_discount * (tax_rate_dec / Decimal("100"))).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         
         # Total
-        total = after_discount + tax_amount
+        total = (after_discount + tax_amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         
         invoice = {
             "id": generate_invoice_number(),
@@ -160,11 +198,11 @@ def create_invoice(client_name: str, items: List[Dict],
             "client_name": client["name"],
             "client_email": client.get("email", ""),
             "client_address": client.get("address", ""),
-            "items": items,
+            "items": processed_items,
             "subtotal": float(subtotal),
-            "discount_percent": float(discount),
+            "discount_percent": float(discount_dec),
             "discount_amount": float(discount_amount),
-            "tax_percent": float(tax_rate),
+            "tax_percent": float(tax_rate_dec),
             "tax_amount": float(tax_amount),
             "total": float(total),
             "currency": "USD",
@@ -181,10 +219,14 @@ def create_invoice(client_name: str, items: List[Dict],
         invoice_file = INVOICES_DIR / f"{invoice['id']}.json"
         invoice_file.write_text(json.dumps(invoice, indent=2))
         
-        return {"success": True, "invoice": invoice}
+        return {
+            "success": True, 
+            "invoice": invoice,
+            "formatted_total": format_currency(total)
+        }
         
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"Invoice creation failed: {e}"}
 
 
 def load_invoice(invoice_id: str) -> Optional[Dict]:
@@ -193,7 +235,7 @@ def load_invoice(invoice_id: str) -> Optional[Dict]:
     if invoice_file.exists():
         try:
             return json.loads(invoice_file.read_text())
-        except:
+        except (json.JSONDecodeError, IOError):
             pass
     return None
 
@@ -214,7 +256,7 @@ def load_invoices(client_id: str = None, status: str = None) -> List[Dict]:
                 continue
             
             invoices.append(invoice)
-        except:
+        except (json.JSONDecodeError, IOError):
             continue
     
     # Sort by date (newest first)
@@ -240,55 +282,85 @@ def update_invoice(invoice_id: str, updates: Dict) -> Dict:
     return {"success": True, "invoice": invoice}
 
 
-def record_payment(invoice_id: str, amount: float, method: str = "",
+def record_payment(invoice_id: str, amount: Any, method: str = "",
                   notes: str = "") -> Dict:
-    """Record a payment on an invoice."""
+    """Record a payment on an invoice with proper decimal handling."""
     invoice = load_invoice(invoice_id)
     if not invoice:
         return {"success": False, "error": "Invoice not found"}
     
-    # Add payment
-    payment = {
-        "amount": amount,
-        "method": method,
-        "notes": notes,
-        "paid_at": datetime.now().isoformat()
-    }
+    try:
+        # Parse amount safely
+        payment_amount = safe_decimal(amount)
+        
+        # Add payment
+        payment = {
+            "amount": float(payment_amount),
+            "method": method,
+            "notes": notes,
+            "paid_at": datetime.now().isoformat()
+        }
+        
+        if "payments" not in invoice:
+            invoice["payments"] = []
+        
+        invoice["payments"].append(payment)
+        
+        # Calculate total paid
+        total_paid = Decimal("0")
+        for p in invoice["payments"]:
+            total_paid += safe_decimal(p.get("amount", 0))
+        
+        invoice_total = safe_decimal(invoice.get("total", 0))
+        
+        # Update status
+        if total_paid >= invoice_total:
+            invoice["status"] = "paid"
+            invoice["paid_at"] = datetime.now().isoformat()
+        elif total_paid > 0:
+            invoice["status"] = "partial"
+        
+        if not invoice.get("payment_method"):
+            invoice["payment_method"] = method
+        
+        # Save
+        invoice_file = INVOICES_DIR / f"{invoice_id}.json"
+        invoice_file.write_text(json.dumps(invoice, indent=2))
+        
+        return {
+            "success": True, 
+            "invoice": invoice, 
+            "total_paid": float(total_paid),
+            "balance": float(invoice_total - total_paid)
+        }
     
-    if "payments" not in invoice:
-        invoice["payments"] = []
-    
-    invoice["payments"].append(payment)
-    
-    # Calculate total paid
-    total_paid = sum(p["amount"] for p in invoice["payments"])
-    
-    # Update status
-    if total_paid >= invoice["total"]:
-        invoice["status"] = "paid"
-        invoice["paid_at"] = datetime.now().isoformat()
-    elif total_paid > 0:
-        invoice["status"] = "partial"
-    
-    invoice["payment_method"] = method if not invoice.get("payment_method") else invoice["payment_method"]
-    
-    # Save
-    invoice_file = INVOICES_DIR / f"{invoice_id}.json"
-    invoice_file.write_text(json.dumps(invoice, indent=2))
-    
-    return {"success": True, "invoice": invoice, "total_paid": total_paid}
+    except Exception as e:
+        return {"success": False, "error": f"Payment recording failed: {e}"}
 
 
 def generate_invoice_html(invoice: Dict) -> str:
-    """Generate HTML invoice for viewing/printing."""
+    """Generate HTML invoice for viewing/printing with XSS protection."""
+    # Escape all string values
+    safe = {}
+    for key, value in invoice.items():
+        if isinstance(value, str):
+            safe[key] = html_module.escape(value)
+        else:
+            safe[key] = value
+    
     items_html = ""
-    for item in invoice["items"]:
+    for item in invoice.get("items", []):
+        desc = html_module.escape(str(item.get('description', '')))
+        qty = item.get('quantity', 1)
+        price = item.get('unit_price', 0)
+        total = item.get('total', 0)
+        
         items_html += f"""
         <tr>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd;">{item.get('description', '')}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">{item.get('quantity', 1)}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">${item.get('unit_price', 0):.2f}</td>
-            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">${item.get('total', 0):.2f}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd;">{desc}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">{qty}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">${price:.2f}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #ddd; text-align: right;">${total:.2f}</td>
         </tr>
         """
     
@@ -297,7 +369,7 @@ def generate_invoice_html(invoice: Dict) -> str:
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Invoice {invoice['invoice_number']}</title>
+    <title>Invoice {safe.get('invoice_number', '')}</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 40px; color: #333; }}
         .invoice {{ max-width: 800px; margin: 0 auto; }}
@@ -327,21 +399,21 @@ def generate_invoice_html(invoice: Dict) -> str:
             <div class="company">YOUR COMPANY NAME</div>
             <div class="invoice-title">INVOICE</div>
             <div style="margin-top: 10px;">
-                <span class="status status-{invoice['status']}">{invoice['status'].upper()}</span>
+                <span class="status status-{safe.get('status', 'draft')}">{safe.get('status', 'DRAFT').upper()}</span>
             </div>
         </div>
         
         <div class="details">
             <div class="client-info">
                 <strong>Bill To:</strong><br>
-                {invoice['client_name']}<br>
-                {invoice.get('client_email', '')}<br>
-                {invoice.get('client_address', '').replace(chr(10), '<br>')}
+                {safe.get('client_name', '')}<br>
+                {safe.get('client_email', '')}<br>
+                {safe.get('client_address', '').replace(chr(10), '<br>')}
             </div>
             <div class="invoice-info">
-                <strong>Invoice Number:</strong> {invoice['invoice_number']}<br>
-                <strong>Date:</strong> {invoice['created_at'][:10]}<br>
-                <strong>Due Date:</strong> {invoice['due_date']}<br>
+                <strong>Invoice Number:</strong> {safe.get('invoice_number', '')}<br>
+                <strong>Date:</strong> {safe.get('created_at', '')[:10]}<br>
+                <strong>Due Date:</strong> {safe.get('due_date', '')}<br>
             </div>
         </div>
         
@@ -362,7 +434,7 @@ def generate_invoice_html(invoice: Dict) -> str:
         <div class="totals">
             <div class="total-row">
                 <span>Subtotal:</span>
-                <span>${invoice['subtotal']:.2f}</span>
+                <span>${invoice.get('subtotal', 0):.2f}</span>
             </div>
             
             {f'''<div class="total-row">
@@ -379,16 +451,16 @@ def generate_invoice_html(invoice: Dict) -> str:
             
             <div class="total-row grand">
                 <span>Total:</span>
-                <span>${invoice['total']:.2f}</span>
+                <span>${invoice.get('total', 0):.2f}</span>
             </div>
         </div>
         
         {f'''
         <div class="notes">
             <strong>Notes:</strong><br>
-            {invoice["notes"]}
+            {html_module.escape(safe.get("notes", ""))}
         </div>
-        ''' if invoice.get('notes') else ''}
+        ''' if safe.get('notes') else ''}
         
         <div class="footer">
             <p>Thank you for your business!</p>
@@ -428,18 +500,36 @@ def export_invoice(invoice_id: str, format: str = "html") -> Dict:
 
 
 def get_financial_report(year_month: str = None) -> Dict:
-    """Generate financial report for period."""
+    """Generate financial report for period with proper decimal handling."""
     invoices = load_invoices()
     
     if year_month:
         # Filter by month
         invoices = [i for i in invoices if i.get("created_at", "").startswith(year_month)]
     
-    # Calculate totals
-    total_invoiced = sum(i["total"] for i in invoices)
-    total_paid = sum(i["total"] for i in invoices if i["status"] == "paid")
-    total_outstanding = sum(i["total"] - sum(p["amount"] for p in i.get("payments", [])) 
-                           for i in invoices if i["status"] != "paid")
+    # Calculate totals safely
+    total_invoiced = Decimal("0")
+    total_paid = Decimal("0")
+    total_outstanding = Decimal("0")
+    
+    for invoice in invoices:
+        inv_total = safe_decimal(invoice.get("total"))
+        total_invoiced += inv_total
+        
+        # Calculate payments
+        total_paid_amt = Decimal("0")
+        for payment in invoice.get("payments", []):
+            total_paid_amt += safe_decimal(payment.get("amount", 0))
+        
+        if invoice.get("status") == "paid":
+            total_paid += inv_total
+        else:
+            total_outstanding += inv_total - total_paid_amt
+        
+        # If partially paid
+        if invoice.get("status") == "partial":
+            total_paid += total_paid_amt
+            total_outstanding += inv_total - total_paid_amt
     
     # Count by status
     by_status = {}
@@ -452,19 +542,21 @@ def get_financial_report(year_month: str = None) -> Dict:
     by_client = {}
     for invoice in invoices:
         client = invoice["client_name"]
-        by_client[client] = by_client.get(client, 0) + invoice["total"]
+        by_client[client] = by_client.get(client, Decimal("0")) + safe_decimal(invoice.get("total", 0))
     
     top_clients = sorted(by_client.items(), key=lambda x: x[1], reverse=True)[:5]
+    
+    collection_rate = (total_paid / total_invoiced * 100) if total_invoiced > 0 else 0
     
     return {
         "period": year_month or "all time",
         "total_invoices": len(invoices),
-        "total_invoiced": total_invoiced,
-        "total_paid": total_paid,
-        "total_outstanding": total_outstanding,
-        "collection_rate": (total_paid / total_invoiced * 100) if total_invoiced > 0 else 0,
+        "total_invoiced": float(total_invoiced),
+        "total_paid": float(total_paid),
+        "total_outstanding": float(total_outstanding),
+        "collection_rate": float(collection_rate),
         "by_status": by_status,
-        "top_clients": top_clients
+        "top_clients": [(c, float(a)) for c, a in top_clients]
     }
 
 
@@ -483,7 +575,9 @@ def display_invoice_list(invoices: List[Dict], title: str = "Invoices"):
         number = inv['invoice_number']
         client = inv['client_name'][:23]
         date = inv['created_at'][:10]
-        amount = f"${inv['total']:.2f}"
+        
+        total = safe_decimal(inv.get('total', 0))
+        amount = f"${total:.2f}"
         
         status_icon = {
             "paid": "✅",
@@ -550,15 +644,15 @@ def interactive_create_invoice():
     # Tax and discount
     tax_str = input("\nTax rate % [0]: ").strip() or "0"
     try:
-        tax_rate = Decimal(tax_str)
+        tax_rate = float(tax_str)
     except:
-        tax_rate = Decimal("0")
+        tax_rate = 0
     
     discount_str = input("Discount % [0]: ").strip() or "0"
     try:
-        discount = Decimal(discount_str)
+        discount = float(discount_str)
     except:
-        discount = Decimal("0")
+        discount = 0
     
     notes = input("Notes (optional): ").strip()
     
@@ -592,6 +686,11 @@ Examples:
   smf run invoice-generator pay INV-202603-ABC123 --amount 1500
   smf run invoice-generator export INV-202603-ABC123
   smf run invoice-generator report --month 2026-03
+
+Currency Handling:
+  • All amounts use proper Decimal arithmetic
+  • Supports USD, EUR, GBP (default: USD)
+  • Proper rounding (half-up) for all calculations
 """)
 
 
@@ -719,7 +818,7 @@ def main():
         if result["success"]:
             print(f"\n✅ Invoice created: {result['invoice']['invoice_number']}")
             print(f"   Client: {result['invoice']['client_name']}")
-            print(f"   Total: ${result['invoice']['total']:.2f}")
+            print(f"   Total: {result.get('formatted_total', format_currency(result['invoice']['total']))}")
             print(f"   Due: {result['invoice']['due_date']}")
             print(f"\n   Export: smf run invoice-generator export {result['invoice']['id']}")
         else:
@@ -758,12 +857,12 @@ def main():
         for item in invoice['items']:
             print(f"  • {item['description']}: {item['quantity']} x ${item['unit_price']:.2f} = ${item['total']:.2f}")
         
-        print(f"\nSubtotal: ${invoice['subtotal']:.2f}")
+        print(f"\nSubtotal: {format_currency(invoice['subtotal'])}")
         if invoice.get('discount_amount', 0) > 0:
-            print(f"Discount: -${invoice['discount_amount']:.2f}")
+            print(f"Discount: -{format_currency(invoice['discount_amount'])}")
         if invoice.get('tax_amount', 0) > 0:
-            print(f"Tax: ${invoice['tax_amount']:.2f}")
-        print(f"Total: ${invoice['total']:.2f}")
+            print(f"Tax: {format_currency(invoice['tax_amount'])}")
+        print(f"Total: {format_currency(invoice['total'])}")
     
     elif command == "pay":
         if len(args) < 1:
@@ -786,8 +885,9 @@ def main():
         result = record_payment(invoice_id, amount, method, notes)
         
         if result["success"]:
-            print(f"✅ Payment recorded: ${amount:.2f}")
-            print(f"   Total paid: ${result['total_paid']:.2f}")
+            print(f"✅ Payment recorded: {format_currency(amount)}")
+            print(f"   Total paid: {format_currency(result['total_paid'])}")
+            print(f"   Balance: {format_currency(result['balance'])}")
             print(f"   Status: {result['invoice']['status']}")
         else:
             print(f"❌ {result['error']}")
@@ -824,15 +924,15 @@ def main():
         print(f"\n💰 Financial Report: {report['period']}")
         print("=" * 50)
         print(f"\nTotal Invoices: {report['total_invoices']}")
-        print(f"Total Invoiced: ${report['total_invoiced']:.2f}")
-        print(f"Total Paid: ${report['total_paid']:.2f}")
-        print(f"Outstanding: ${report['total_outstanding']:.2f}")
+        print(f"Total Invoiced: {format_currency(report['total_invoiced'])}")
+        print(f"Total Paid: {format_currency(report['total_paid'])}")
+        print(f"Outstanding: {format_currency(report['total_outstanding'])}")
         print(f"Collection Rate: {report['collection_rate']:.1f}%")
         
         if report['top_clients']:
             print(f"\nTop Clients:")
             for client, amount in report['top_clients']:
-                print(f"  • {client}: ${amount:.2f}")
+                print(f"  • {client}: {format_currency(amount)}")
     
     elif command in ("help", "--help", "-h"):
         show_help()

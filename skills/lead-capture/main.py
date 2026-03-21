@@ -13,6 +13,8 @@ Usage:
 import sys
 import json
 import csv
+import re
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -35,9 +37,15 @@ def ensure_leads_dir():
 
 
 def generate_lead_id() -> str:
-    """Generate unique lead ID."""
+    """Generate unique lead ID using UUID to prevent collisions."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    return f"lead-{timestamp}"
+    suffix = uuid.uuid4().hex[:6]
+    return f"lead-{timestamp}-{suffix}"
+
+
+def validate_lead_id(lead_id: str) -> bool:
+    """Validate lead ID format to prevent path traversal."""
+    return bool(re.match(r'^lead-\d{8}-\d{6}-[a-f0-9]{6}$', lead_id))
 
 
 def capture_lead() -> Dict:
@@ -134,7 +142,8 @@ def list_leads(status_filter: str = None, limit: int = None) -> List[Dict]:
         try:
             lead = json.loads(lead_file.read_text())
             leads.append(lead)
-        except:
+        except (json.JSONDecodeError, OSError, IOError) as e:
+            print(f"⚠️  Warning: Could not read {lead_file.name}: {e}", file=sys.stderr)
             continue
     
     # Sort by captured_at (newest first)
@@ -158,51 +167,81 @@ def display_leads(leads: List[Dict]):
     
     print(f"\n📊 {len(leads)} Lead(s)")
     print("-" * 80)
-    print(f"{'ID':<20} {'Name':<20} {'Score':<8} {'Status':<12} {'Source':<15}")
+    print(f"{'ID':<25} {'Name':<20} {'Score':<8} {'Status':<12} {'Source':<15}")
     print("-" * 80)
     
     for lead in leads:
-        lead_id = lead.get("id", "unknown")[:18]
+        lead_id = lead.get("id", "unknown")[:23]
         name = lead.get("name", "N/A")[:18]
         score = lead.get("score", 0)
         status = get_lead_status(score)
         source = lead.get("source", "unknown")[:13]
         
-        print(f"{lead_id:<20} {name:<20} {score:<8} {status:<12} {source:<15}")
+        print(f"{lead_id:<25} {name:<20} {score:<8} {status:<12} {source:<15}")
     
     print("-" * 80)
 
 
-def export_leads(format: str = "csv", output_file: str = None) -> str:
-    """Export leads to file."""
+def export_leads(export_format: str = "csv", output_file: str = None) -> str:
+    """Export leads to file with path validation and sanitized output."""
     leads = list_leads()
     
     if not leads:
         return "No leads to export."
     
-    if format == "csv":
-        if not output_file:
-            output_file = f"leads-export-{datetime.now().strftime('%Y%m%d')}.csv"
-        
-        with open(output_file, 'w', newline='') as f:
-            if leads:
-                writer = csv.DictWriter(f, fieldnames=leads[0].keys())
-                writer.writeheader()
-                writer.writerows(leads)
-        
-        return f"Exported {len(leads)} leads to {output_file}"
+    # Validate output path if provided
+    if output_file:
+        output_path = Path(output_file).resolve()
+        # Ensure output is within current directory or allowed paths
+        allowed_base = Path.cwd().resolve()
+        try:
+            output_path.relative_to(allowed_base)
+        except ValueError:
+            return "Error: Output path must be within current working directory"
+    else:
+        output_path = None
     
-    elif format == "json":
-        if not output_file:
-            output_file = f"leads-export-{datetime.now().strftime('%Y%m%d')}.json"
+    # Collect all unique keys across all leads for CSV header
+    all_keys = list(dict.fromkeys(k for lead in leads for k in lead.keys()))
+    
+    def sanitize_for_csv(value: str) -> str:
+        """Prevent CSV formula injection."""
+        if value and value[0] in ('=', '+', '-', '@', '\t', '\r'):
+            return "'" + value
+        return value
+    
+    if export_format == "csv":
+        if not output_path:
+            output_path = Path.cwd() / f"leads-export-{datetime.now().strftime('%Y%m%d')}.csv"
         
-        with open(output_file, 'w') as f:
-            json.dump(leads, f, indent=2)
+        try:
+            with open(output_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction='ignore')
+                writer.writeheader()
+                
+                # Sanitize each row before writing
+                for lead in leads:
+                    sanitized_row = {k: sanitize_for_csv(str(v)) for k, v in lead.items()}
+                    writer.writerow(sanitized_row)
+            
+            return f"Exported {len(leads)} leads to {output_path}"
+        except (OSError, IOError) as e:
+            return f"Export failed: {e}"
+    
+    elif export_format == "json":
+        if not output_path:
+            output_path = Path.cwd() / f"leads-export-{datetime.now().strftime('%Y%m%d')}.json"
         
-        return f"Exported {len(leads)} leads to {output_file}"
+        try:
+            with open(output_path, 'w') as f:
+                json.dump(leads, f, indent=2)
+            
+            return f"Exported {len(leads)} leads to {output_path}"
+        except (OSError, IOError) as e:
+            return f"Export failed: {e}"
     
     else:
-        return f"Unknown format: {format}"
+        return f"Unknown format: {export_format}"
 
 
 def show_stats():
@@ -287,13 +326,21 @@ def main():
         print(f"   Saved to: {LEADS_DIR / lead['id']}.json")
     
     elif command == "list":
-        limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
+        try:
+            limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
+            if limit is not None and limit <= 0:
+                print("Error: Limit must be positive")
+                return 1
+        except ValueError as e:
+            print(f"Error: Invalid limit value — {e}")
+            return 1
+        
         leads = list_leads(limit=limit)
         display_leads(leads)
     
     elif command == "export":
-        format = sys.argv[2] if len(sys.argv) > 2 else "csv"
-        result = export_leads(format)
+        export_format = sys.argv[2] if len(sys.argv) > 2 else "csv"
+        result = export_leads(export_format)
         print(result)
     
     elif command == "stats":

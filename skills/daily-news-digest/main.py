@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import urllib.request
 import urllib.error
+import urllib.parse
 import ssl
 
 
@@ -79,12 +80,17 @@ def get_api_key() -> Optional[str]:
 
 def fetch_news(api_key: str, category: str, country: str = "us", page_size: int = 5) -> List[Dict]:
     """Fetch news from NewsAPI."""
-    url = f"https://newsapi.org/v2/top-headlines?category={category}&country={country}&pageSize={page_size}&apiKey={api_key}"
+    # Use urlencode to safely construct query parameters
+    params = urllib.parse.urlencode({
+        'category': category,
+        'country': country,
+        'pageSize': page_size,
+        'apiKey': api_key
+    })
+    url = f"https://newsapi.org/v2/top-headlines?{params}"
     
-    # Create SSL context that doesn't verify certificates (for compatibility)
+    # Use secure SSL context with certificate verification enabled
     ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
     
     try:
         req = urllib.request.Request(

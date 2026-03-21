@@ -15,6 +15,7 @@ Usage:
 import sys
 import json
 import uuid
+import shutil
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -34,6 +35,11 @@ LEARNINGS_DIR = LOGS_DIR / "learnings"
 INSIGHTS_DIR = LOGS_DIR / "insights"
 MEMORY_FILE = LOGS_DIR / "promoted.md"
 
+# Log rotation limits
+MAX_LOG_SIZE_MB = 5
+MAX_LOG_AGE_DAYS = 30
+MAX_ITEMS_PER_TYPE = 1000
+
 # Severity levels
 SEVERITIES = ["low", "medium", "high", "critical"]
 
@@ -50,6 +56,57 @@ def ensure_dirs():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def rotate_old_logs():
+    """Rotate old log files to prevent unbounded growth."""
+    cutoff = datetime.now() - timedelta(days=MAX_LOG_AGE_DAYS)
+    
+    for directory in [ERRORS_DIR, LEARNINGS_DIR, INSIGHTS_DIR]:
+        if not directory.exists():
+            continue
+        
+        for log_file in directory.glob("*.md"):
+            try:
+                stat = log_file.stat()
+                mtime = datetime.fromtimestamp(stat.st_mtime)
+                size_mb = stat.st_size / (1024 * 1024)
+                
+                # Remove old files
+                if mtime < cutoff:
+                    log_file.unlink()
+                    continue
+                
+                # Rotate large files
+                if size_mb > MAX_LOG_SIZE_MB:
+                    archive_name = log_file.with_suffix(f'.{datetime.now().strftime("%Y%m%d")}.md.bak')
+                    shutil.move(str(log_file), str(archive_name))
+            except OSError:
+                continue
+
+
+def check_item_count(directory: Path, max_items: int = MAX_ITEMS_PER_TYPE) -> bool:
+    """Check if directory has too many items."""
+    try:
+        json_files = list(directory.glob("*.json"))
+        return len(json_files) < max_items
+    except:
+        return True
+
+
+def cleanup_oldest_items(directory: Path, keep: int = 900):
+    """Remove oldest items when count is too high."""
+    try:
+        items = sorted(directory.glob("*.json"), key=lambda p: p.stat().st_mtime)
+        to_remove = len(items) - keep
+        if to_remove > 0:
+            for item in items[:to_remove]:
+                try:
+                    item.unlink()
+                except:
+                    pass
+    except:
+        pass
+
+
 def generate_item_id(prefix: str = "ITEM") -> str:
     """Generate unique item ID."""
     timestamp = datetime.now().strftime("%Y%m%d")
@@ -57,11 +114,33 @@ def generate_item_id(prefix: str = "ITEM") -> str:
     return f"{prefix}-{timestamp}-{unique}"
 
 
+def atomic_write_json(file_path: Path, data: Dict):
+    """Write JSON file atomically to prevent corruption."""
+    temp_path = file_path.with_suffix('.tmp')
+    try:
+        # Write to temp file first
+        temp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        # Atomic rename
+        temp_path.rename(file_path)
+    except Exception as e:
+        # Cleanup temp file on error
+        try:
+            temp_path.unlink()
+        except:
+            pass
+        raise e
+
+
 def log_error(description: str, context: str = "", severity: str = "medium",
               tags: List[str] = None, resolution: str = "", prevention: str = "") -> Dict:
-    """Log an error for analysis and improvement."""
+    """Log an error for analysis and improvement with safe JSON writing."""
     try:
         ensure_dirs()
+        rotate_old_logs()
+        
+        # Check item count
+        if not check_item_count(ERRORS_DIR):
+            cleanup_oldest_items(ERRORS_DIR)
         
         item_id = generate_item_id("ERR")
         
@@ -81,20 +160,24 @@ def log_error(description: str, context: str = "", severity: str = "medium",
             "resolved_at": None
         }
         
-        # Save as JSON
+        # Save as JSON atomically
         json_file = ERRORS_DIR / f"{item_id}.json"
-        json_file.write_text(json.dumps(error_data, indent=2))
+        atomic_write_json(json_file, error_data)
         
         # Also append to daily markdown log
-        md_file = ERRORS_DIR / f"errors-{datetime.now().strftime('%Y-%m-%d')}.md"
-        with open(md_file, 'a') as f:
-            f.write(f"\n## {item_id}\n\n")
-            f.write(f"**Error:** {description}\n\n")
-            f.write(f"**Context:** {context}\n\n")
-            f.write(f"**Severity:** {severity}\n\n")
-            f.write(f"**Tags:** {', '.join(tags) if tags else 'None'}\n\n")
-            f.write(f"**Timestamp:** {datetime.now().isoformat()}\n\n")
-            f.write("---\n")
+        try:
+            md_file = ERRORS_DIR / f"errors-{datetime.now().strftime('%Y-%m-%d')}.md"
+            with open(md_file, 'a', encoding='utf-8') as f:
+                f.write(f"\n## {item_id}\n\n")
+                f.write(f"**Error:** {description}\n\n")
+                f.write(f"**Context:** {context}\n\n")
+                f.write(f"**Severity:** {severity}\n\n")
+                f.write(f"**Tags:** {', '.join(tags) if tags else 'None'}\n\n")
+                f.write(f"**Timestamp:** {datetime.now().isoformat()}\n\n")
+                f.write("---\n")
+        except OSError as e:
+            # Markdown logging is secondary
+            pass
         
         return {"success": True, "item_id": item_id, "file": str(json_file)}
         
@@ -105,9 +188,14 @@ def log_error(description: str, context: str = "", severity: str = "medium",
 def log_learning(insight: str, category: str = "best-practice", 
                  context: str = "", tags: List[str] = None,
                  related_errors: List[str] = None) -> Dict:
-    """Log a learning or insight."""
+    """Log a learning or insight with safe JSON writing."""
     try:
         ensure_dirs()
+        rotate_old_logs()
+        
+        # Check item count
+        if not check_item_count(LEARNINGS_DIR):
+            cleanup_oldest_items(LEARNINGS_DIR)
         
         item_id = generate_item_id("LRN")
         
@@ -124,20 +212,23 @@ def log_learning(insight: str, category: str = "best-practice",
             "updated_at": datetime.now().isoformat()
         }
         
-        # Save as JSON
+        # Save as JSON atomically
         json_file = LEARNINGS_DIR / f"{item_id}.json"
-        json_file.write_text(json.dumps(learning_data, indent=2))
+        atomic_write_json(json_file, learning_data)
         
         # Also append to daily markdown log
-        md_file = LEARNINGS_DIR / f"learnings-{datetime.now().strftime('%Y-%m-%d')}.md"
-        with open(md_file, 'a') as f:
-            f.write(f"\n## {item_id}\n\n")
-            f.write(f"**Insight:** {insight}\n\n")
-            f.write(f"**Category:** {category}\n\n")
-            f.write(f"**Context:** {context}\n\n")
-            f.write(f"**Tags:** {', '.join(tags) if tags else 'None'}\n\n")
-            f.write(f"**Timestamp:** {datetime.now().isoformat()}\n\n")
-            f.write("---\n")
+        try:
+            md_file = LEARNINGS_DIR / f"learnings-{datetime.now().strftime('%Y-%m-%d')}.md"
+            with open(md_file, 'a', encoding='utf-8') as f:
+                f.write(f"\n## {item_id}\n\n")
+                f.write(f"**Insight:** {insight}\n\n")
+                f.write(f"**Category:** {category}\n\n")
+                f.write(f"**Context:** {context}\n\n")
+                f.write(f"**Tags:** {', '.join(tags) if tags else 'None'}\n\n")
+                f.write(f"**Timestamp:** {datetime.now().isoformat()}\n\n")
+                f.write("---\n")
+        except OSError:
+            pass
         
         return {"success": True, "item_id": item_id, "file": str(json_file)}
         
@@ -150,6 +241,10 @@ def log_insight(title: str, description: str, impact: str = "medium",
     """Log a general insight or observation."""
     try:
         ensure_dirs()
+        rotate_old_logs()
+        
+        if not check_item_count(INSIGHTS_DIR):
+            cleanup_oldest_items(INSIGHTS_DIR)
         
         item_id = generate_item_id("INS")
         
@@ -165,7 +260,7 @@ def log_insight(title: str, description: str, impact: str = "medium",
         }
         
         json_file = INSIGHTS_DIR / f"{item_id}.json"
-        json_file.write_text(json.dumps(insight_data, indent=2))
+        atomic_write_json(json_file, insight_data)
         
         return {"success": True, "item_id": item_id}
         
@@ -210,7 +305,7 @@ def load_items(item_type: str = None, status: str = None,
                         continue
                 
                 items.append(item)
-            except:
+            except (json.JSONDecodeError, OSError):
                 continue
     
     # Sort by date (newest first)
@@ -226,13 +321,13 @@ def get_item(item_id: str) -> Optional[Dict]:
         if json_file.exists():
             try:
                 return json.loads(json_file.read_text())
-            except:
+            except (json.JSONDecodeError, OSError):
                 continue
     return None
 
 
 def update_item(item_id: str, updates: Dict) -> Dict:
-    """Update an item."""
+    """Update an item atomically."""
     item = get_item(item_id)
     if not item:
         return {"success": False, "error": "Item not found"}
@@ -258,7 +353,7 @@ def update_item(item_id: str, updates: Dict) -> Dict:
         directory = INSIGHTS_DIR
     
     json_file = directory / f"{item_id}.json"
-    json_file.write_text(json.dumps(item, indent=2))
+    atomic_write_json(json_file, item)
     
     return {"success": True, "item": item}
 
@@ -322,9 +417,23 @@ def promote_to_memory(item_id: str, notes: str = "") -> Dict:
 ---
 """
         
-        # Append to memory file
-        with open(MEMORY_FILE, 'a') as f:
-            f.write(memory_entry)
+        # Append to memory file atomically
+        temp_mem = MEMORY_FILE.with_suffix('.tmp')
+        try:
+            # Read existing content
+            existing = ""
+            if MEMORY_FILE.exists():
+                existing = MEMORY_FILE.read_text()
+            
+            # Write combined
+            temp_mem.write_text(existing + memory_entry)
+            temp_mem.rename(MEMORY_FILE)
+        except:
+            try:
+                temp_mem.unlink()
+            except:
+                pass
+            raise
         
         # Mark item as promoted
         update_item(item_id, {"promoted": True})
@@ -564,6 +673,11 @@ Storage:
   ~/.smf/improvement/learnings/
   ~/.smf/improvement/insights/
   ~/.smf/improvement/promoted.md (memory file)
+
+Limits:
+  • Log files auto-rotate when >5MB or >30 days old
+  • Maximum {MAX_ITEMS_PER_TYPE} items per type
+  • JSON writes are atomic to prevent corruption
 """)
 
 

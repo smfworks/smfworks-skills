@@ -8,6 +8,7 @@ View, backup, and cleanly remove skills with an interactive terminal UI.
 
 import os
 import sys
+import re
 import json
 import shutil
 import argparse
@@ -183,7 +184,27 @@ def display_skills_table(skills: List[Dict], selected: set = None):
 
 def backup_skill(skill_name: str) -> bool:
     """Create a backup of a skill before removal."""
+    # Validate skill name to prevent path traversal
+    if not _validate_skill_name(skill_name):
+        print(f"Error: Invalid skill name: '{skill_name}'")
+        return False
+    
     skill_path = SKILLS_DIR / skill_name
+    
+    # Verify skill path is within expected directory
+    try:
+        resolved_skill = skill_path.resolve()
+        if not str(resolved_skill).startswith(str(SKILLS_DIR.resolve())):
+            print(f"Error: Skill path outside expected directory")
+            return False
+    except Exception as e:
+        print(f"Error: Path validation error: {e}")
+        return False
+    
+    if not skill_path.exists():
+        print(f"Error: Skill '{skill_name}' not found")
+        return False
+    
     backup_dir = SMF_DIR / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     
@@ -208,14 +229,34 @@ def backup_skill(skill_name: str) -> bool:
         return False
 
 
+def _validate_skill_name(skill_name: str) -> bool:
+    """Validate skill name to prevent path traversal."""
+    # Only allow alphanumeric, hyphens, and underscores
+    if not re.match(r'^[a-zA-Z0-9_-]+$', skill_name):
+        return False
+    return True
+
+
 def remove_skill(skill_name: str, dry_run: bool = False) -> Tuple[bool, str]:
     """Remove a skill completely."""
+    # Validate skill name to prevent path traversal
+    if not _validate_skill_name(skill_name):
+        return False, f"Invalid skill name: '{skill_name}'"
+    
     actions = []
     
     # Paths to remove
     skill_path = SKILLS_DIR / skill_name
     config_path = CONFIG_DIR / skill_name
     wrapper_path = BIN_DIR / f"smf-{skill_name}"
+    
+    # Verify paths are within expected directories
+    try:
+        resolved_skill = skill_path.resolve()
+        if not str(resolved_skill).startswith(str(SKILLS_DIR.resolve())):
+            return False, f"Skill path outside expected directory"
+    except Exception as e:
+        return False, f"Path validation error: {e}"
     
     if not skill_path.exists():
         return False, f"Skill '{skill_name}' not found"

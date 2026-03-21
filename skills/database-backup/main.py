@@ -19,6 +19,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
+import time
 
 # Add shared auth to path
 shared_path = Path(__file__).parent.parent.parent / "shared"
@@ -31,6 +32,10 @@ SKILL_NAME = "database-backup"
 MIN_TIER = "pro"
 BACKUP_DIR = Path.home() / ".smf" / "backups"
 CONFIG_DIR = Path.home() / ".smf" / "config"
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # seconds
 
 
 def ensure_dirs():
@@ -45,24 +50,101 @@ def generate_backup_filename(db_name: str, db_type: str) -> str:
     return f"{db_name}-{timestamp}.{db_type}.sql.gz"
 
 
+def get_password_from_env(password: str) -> tuple:
+    """
+    Get password from environment variable or file.
+    Returns (actual_password, source_info).
+    """
+    if password.startswith('env:'):
+        env_var = password[4:]
+        actual_password = os.environ.get(env_var, '')
+        return actual_password, f"environment variable {env_var}"
+    elif password.startswith('file:'):
+        file_path = password[5:]
+        try:
+            with open(os.path.expanduser(file_path), 'r') as f:
+                actual_password = f.read().strip()
+            return actual_password, f"file {file_path}"
+        except Exception as e:
+            print(f"⚠️  Could not read password file: {e}", file=sys.stderr)
+            return '', f"file {file_path} (failed)"
+    else:
+        return password, "provided directly"
+
+
+def run_with_retry(cmd: List[str], env: Dict = None, capture_output: bool = True) -> subprocess.CompletedProcess:
+    """Run command with retry logic."""
+    last_error = None
+    
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=capture_output,
+                text=True,
+                env=env,
+                timeout=300  # 5 minute timeout
+            )
+            
+            if result.returncode == 0:
+                return result
+            
+            last_error = result.stderr if result.stderr else f"Exit code {result.returncode}"
+            
+            # Don't retry on auth failures
+            if result.returncode in (1, 2) and 'authentication' in (result.stderr or '').lower():
+                print(f"   ✗ Authentication failed (no retry)", file=sys.stderr)
+                break
+            
+            if attempt < MAX_RETRIES:
+                print(f"   ⚠️  Attempt {attempt} failed, retrying in {RETRY_DELAY}s...", file=sys.stderr)
+                time.sleep(RETRY_DELAY)
+        except subprocess.TimeoutExpired:
+            last_error = "Command timed out"
+            if attempt < MAX_RETRIES:
+                print(f"   ⚠️  Attempt {attempt} timed out, retrying...", file=sys.stderr)
+                time.sleep(RETRY_DELAY)
+        except Exception as e:
+            last_error = str(e)
+            if attempt < MAX_RETRIES:
+                print(f"   ⚠️  Attempt {attempt} failed: {e}, retrying...", file=sys.stderr)
+                time.sleep(RETRY_DELAY)
+    
+    # Return failed result
+    return subprocess.CompletedProcess(
+        cmd=cmd,
+        returncode=1,
+        stdout="",
+        stderr=f"Failed after {MAX_RETRIES} attempts. Last error: {last_error}"
+    )
+
+
 def backup_sqlite(source: str, dest_dir: str) -> Dict:
     """Backup SQLite database."""
     try:
-        source_path = Path(source).expanduser()
-        dest_path = Path(dest_dir).expanduser()
+        source_path = Path(source).expanduser().resolve()
+        dest_path = Path(dest_dir).expanduser().resolve()
         dest_path.mkdir(parents=True, exist_ok=True)
         
         if not source_path.exists():
             return {"success": False, "error": f"Database not found: {source}"}
         
+        # Verify SQLite file is valid
+        result = subprocess.run(
+            ["sqlite3", str(source_path), "PRAGMA integrity_check;"],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if result.returncode != 0 or "ok" not in result.stdout.lower():
+            return {"success": False, "error": f"Database integrity check failed: {result.stderr}"}
+        
         db_name = source_path.stem
         backup_file = dest_path / generate_backup_filename(db_name, "sqlite")
         
-        # SQLite backup using .dump command
-        result = subprocess.run(
-            ["sqlite3", str(source_path), ".dump"],
-            capture_output=True,
-            text=True
+        # SQLite backup using .dump command with retry
+        result = run_with_retry(
+            ["sqlite3", str(source_path), ".dump"]
         )
         
         if result.returncode != 0:
@@ -74,93 +156,139 @@ def backup_sqlite(source: str, dest_dir: str) -> Dict:
         
         # Get file size
         size_mb = backup_file.stat().st_size / (1024 * 1024)
+        original_size = source_path.stat().st_size / (1024 * 1024)
         
         return {
             "success": True,
             "backup_file": str(backup_file),
-            "original_size_mb": round(source_path.stat().st_size / (1024 * 1024), 2),
+            "original_size_mb": round(original_size, 2),
             "backup_size_mb": round(size_mb, 2),
-            "compression_ratio": round((1 - size_mb / (source_path.stat().st_size / (1024 * 1024))) * 100, 1)
+            "compression_ratio": round((1 - size_mb / original_size) * 100, 1) if original_size > 0 else 0
         }
         
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"SQLite backup error: {e}"}
 
 
 def backup_postgres(host: str, port: str, database: str, user: str, password: str, dest_dir: str) -> Dict:
     """Backup PostgreSQL database."""
     try:
-        dest_path = Path(dest_dir).expanduser()
+        dest_path = Path(dest_dir).expanduser().resolve()
         dest_path.mkdir(parents=True, exist_ok=True)
         
         backup_file = dest_path / generate_backup_filename(database, "postgres")
         
-        # Set PGPASSWORD environment variable
-        env = os.environ.copy()
-        env["PGPASSWORD"] = password
+        # Get password securely
+        actual_password, pass_source = get_password_from_env(password)
         
-        # Run pg_dump
-        with gzip.open(backup_file, 'wb') as f:
-            result = subprocess.run(
-                ["pg_dump", "-h", host, "-p", port, "-U", user, "-d", database, "-F", "plain"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                env=env
-            )
+        # Create temporary password file
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.pgpass') as f:
+            # Format: hostname:port:database:username:password
+            f.write(f"{host}:{port}:{database}:{user}:{actual_password}\n")
+            pgpass_file = f.name
+        
+        # Set permissions (required by pg_dump)
+        os.chmod(pgpass_file, 0o600)
+        
+        try:
+            env = os.environ.copy()
+            env['PGPASSFILE'] = pgpass_file
             
-            if result.returncode != 0:
-                return {"success": False, "error": f"pg_dump failed: {result.stderr.decode()}"}
+            # Run pg_dump with retry
+            with gzip.open(backup_file, 'wb') as f:
+                result = run_with_retry(
+                    ["pg_dump", "-h", host, "-p", port, "-U", user, "-d", database, "-F", "plain"],
+                    env=env,
+                    capture_output=True
+                )
+                
+                if result.returncode != 0:
+                    # Redact password from error message
+                    safe_stderr = result.stderr.replace(actual_password, '***REDACTED***') if actual_password else result.stderr
+                    return {"success": False, "error": f"pg_dump failed: {safe_stderr}"}
+                
+                f.write(result.stdout.encode('utf-8'))
             
-            f.write(result.stdout)
+            size_mb = backup_file.stat().st_size / (1024 * 1024)
+            
+            return {
+                "success": True,
+                "backup_file": str(backup_file),
+                "database": database,
+                "backup_size_mb": round(size_mb, 2),
+                "password_source": pass_source
+            }
         
-        size_mb = backup_file.stat().st_size / (1024 * 1024)
-        
-        return {
-            "success": True,
-            "backup_file": str(backup_file),
-            "database": database,
-            "backup_size_mb": round(size_mb, 2)
-        }
+        finally:
+            # Cleanup password file
+            try:
+                os.unlink(pgpass_file)
+            except:
+                pass
         
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"PostgreSQL backup error: {e}"}
 
 
 def backup_mysql(host: str, port: str, database: str, user: str, password: str, dest_dir: str) -> Dict:
-    """Backup MySQL database."""
+    """Backup MySQL database using credentials file."""
     try:
-        dest_path = Path(dest_dir).expanduser()
+        dest_path = Path(dest_dir).expanduser().resolve()
         dest_path.mkdir(parents=True, exist_ok=True)
         
         backup_file = dest_path / generate_backup_filename(database, "mysql")
         
-        # Run mysqldump
-        with gzip.open(backup_file, 'wb') as f:
-            result = subprocess.run(
-                ["mysqldump", "-h", host, "-P", port, "-u", user, f"-p{password}", database],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            
-            if result.returncode != 0:
-                stderr = result.stderr.decode()
-                # Filter out password warning
-                stderr = '\n'.join([line for line in stderr.split('\n') if 'password' not in line.lower()])
-                return {"success": False, "error": f"mysqldump failed: {stderr}"}
-            
-            f.write(result.stdout)
+        # Get password securely
+        actual_password, pass_source = get_password_from_env(password)
         
-        size_mb = backup_file.stat().st_size / (1024 * 1024)
+        # Create temporary credentials file
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cnf') as f:
+            f.write("[mysqldump]\n")
+            f.write(f"user={user}\n")
+            f.write(f"password={actual_password}\n")
+            f.write(f"host={host}\n")
+            f.write(f"port={port}\n")
+            creds_file = f.name
         
-        return {
-            "success": True,
-            "backup_file": str(backup_file),
-            "database": database,
-            "backup_size_mb": round(size_mb, 2)
-        }
+        try:
+            # Run mysqldump with retry using defaults file
+            with gzip.open(backup_file, 'wb') as f:
+                result = run_with_retry(
+                    ["mysqldump", f"--defaults-file={creds_file}", database],
+                    capture_output=True
+                )
+                
+                if result.returncode != 0:
+                    # Redact password from error message
+                    safe_stderr = result.stderr.replace(actual_password, '***REDACTED***') if actual_password else result.stderr
+                    # Filter out password warning
+                    stderr_lines = [l for l in safe_stderr.split('\n') if 'password' not in l.lower()]
+                    safe_stderr = '\n'.join(stderr_lines)
+                    return {"success": False, "error": f"mysqldump failed: {safe_stderr}"}
+                
+                f.write(result.stdout.encode('utf-8'))
+            
+            size_mb = backup_file.stat().st_size / (1024 * 1024)
+            
+            return {
+                "success": True,
+                "backup_file": str(backup_file),
+                "database": database,
+                "backup_size_mb": round(size_mb, 2),
+                "password_source": pass_source
+            }
+        
+        finally:
+            # Cleanup credentials file
+            try:
+                os.unlink(creds_file)
+            except:
+                pass
         
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"MySQL backup error: {e}"}
 
 
 def list_backups() -> List[Dict]:
@@ -170,13 +298,16 @@ def list_backups() -> List[Dict]:
     backups = []
     if BACKUP_DIR.exists():
         for backup_file in BACKUP_DIR.rglob("*.sql.gz"):
-            stat = backup_file.stat()
-            backups.append({
-                "file": str(backup_file),
-                "name": backup_file.name,
-                "size_mb": round(stat.st_size / (1024 * 1024), 2),
-                "created": datetime.fromtimestamp(stat.st_mtime).isoformat()
-            })
+            try:
+                stat = backup_file.stat()
+                backups.append({
+                    "file": str(backup_file),
+                    "name": backup_file.name,
+                    "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                    "created": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
+            except OSError:
+                continue
     
     # Sort by date (newest first)
     backups.sort(key=lambda x: x["created"], reverse=True)
@@ -186,8 +317,8 @@ def list_backups() -> List[Dict]:
 def restore_backup(backup_file: str, target: str, db_type: str) -> Dict:
     """Restore database from backup."""
     try:
-        backup_path = Path(backup_file).expanduser()
-        target_path = Path(target).expanduser()
+        backup_path = Path(backup_file).expanduser().resolve()
+        target_path = Path(target).expanduser().resolve()
         
         if not backup_path.exists():
             return {"success": False, "error": f"Backup file not found: {backup_file}"}
@@ -204,20 +335,28 @@ def restore_backup(backup_file: str, target: str, db_type: str) -> Dict:
                 sql = f.read()
             
             # Write to temp file and execute
-            temp_sql = Path("/tmp/restore.sql")
-            temp_sql.write_text(sql)
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.sql') as temp:
+                temp.write(sql)
+                temp_sql = temp.name
             
-            result = subprocess.run(
-                ["sqlite3", str(target_path)],
-                stdin=temp_sql.open(),
-                capture_output=True,
-                text=True
-            )
-            
-            if result.returncode != 0:
-                return {"success": False, "error": f"Restore failed: {result.stderr}"}
-            
-            return {"success": True, "message": f"Restored to {target}"}
+            try:
+                result = subprocess.run(
+                    ["sqlite3", str(target_path)],
+                    stdin=open(temp_sql, 'r'),
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode != 0:
+                    return {"success": False, "error": f"Restore failed: {result.stderr}"}
+                
+                return {"success": True, "message": f"Restored to {target}"}
+            finally:
+                try:
+                    os.unlink(temp_sql)
+                except:
+                    pass
         
         else:
             return {"success": False, "error": f"Restore not yet implemented for {db_type}"}
@@ -235,12 +374,15 @@ def cleanup_old_backups(keep_days: int = 30) -> Dict:
     total_size = 0
     
     for backup_file in BACKUP_DIR.rglob("*.sql.gz"):
-        mtime = datetime.fromtimestamp(backup_file.stat().st_mtime)
-        if mtime < cutoff:
-            size = backup_path.stat().st_size
-            backup_file.unlink()
-            removed += 1
-            total_size += size
+        try:
+            mtime = datetime.fromtimestamp(backup_file.stat().st_mtime)
+            if mtime < cutoff:
+                size = backup_file.stat().st_size
+                backup_file.unlink()
+                removed += 1
+                total_size += size
+        except OSError:
+            continue
     
     return {
         "success": True,
@@ -277,7 +419,13 @@ def interactive_backup():
         port = input("Port [5432]: ").strip() or "5432"
         database = input("Database name: ").strip()
         user = input("Username: ").strip()
+        
+        print("\nPassword options:")
+        print("  - Type password directly (not recommended)")
+        print("  - Use env:VAR_NAME to read from environment variable")
+        print("  - Use file:path/to/file to read from file")
         password = input("Password: ").strip()
+        
         dest = input("Backup destination [~/smf/backups]: ").strip() or str(BACKUP_DIR)
         
         return backup_postgres(host, port, database, user, password, dest)
@@ -289,7 +437,13 @@ def interactive_backup():
         port = input("Port [3306]: ").strip() or "3306"
         database = input("Database name: ").strip()
         user = input("Username: ").strip()
+        
+        print("\nPassword options:")
+        print("  - Type password directly (not recommended)")
+        print("  - Use env:VAR_NAME to read from environment variable")
+        print("  - Use file:path/to/file to read from file")
         password = input("Password: ").strip()
+        
         dest = input("Backup destination [~/smf/backups]: ").strip() or str(BACKUP_DIR)
         
         return backup_mysql(host, port, database, user, password, dest)
@@ -363,6 +517,10 @@ def main():
         print("  smf run database-backup list")
         print("  smf run database-backup restore ~/backups/app-20260320-120000.sqlite.sql.gz")
         print("  smf run database-backup cleanup 7")
+        print("")
+        print("Password handling:")
+        print("  Use env:DB_PASSWORD to read from environment variable")
+        print("  Use file:~/.db_password to read from file")
         return 0
     
     command = sys.argv[1]
@@ -384,6 +542,8 @@ def main():
                 print(f"   Size: {result['backup_size_mb']} MB")
                 if "compression_ratio" in result:
                     print(f"   Compression: {result['compression_ratio']}%")
+                if "password_source" in result:
+                    print(f"   Password: from {result['password_source']}")
             else:
                 print(f"\n❌ Backup failed: {result['error']}")
                 return 1

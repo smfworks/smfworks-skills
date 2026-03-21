@@ -3,465 +3,213 @@
 Morning Commute - SMF Works Pro Skill
 Your daily commute briefing with traffic, transit, and weather.
 
-Requires: SMF Works Pro Subscription + API keys (see SETUP.md)
+Requires: SMF Works Pro Subscription
+APIs: OpenStreetMap (free), OSRM (free), OpenWeatherMap (optional)
 """
 
 import os
 import sys
 import json
 import argparse
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Optional
 import urllib.request
 import urllib.error
+import urllib.parse
 import ssl
 
-# Add shared module path
+# Add shared module path  
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
 
 try:
-    from smf_auth import require_subscription, validate_token
+    from smf_auth import require_subscription
 except ImportError:
-    # Fallback for standalone testing
     def require_subscription():
-        """Check if user has active subscription."""
         token_path = os.path.expanduser("~/.smf/token")
         if not os.path.exists(token_path):
             print("❌ Pro skill requires SMF Works subscription")
-            print("   Subscribe at: https://smf.works/subscribe")
+            return False
+        # Check token is non-empty
+        try:
+            with open(token_path, 'r') as f:
+                token = f.read().strip()
+            if not token:
+                print("❌ Pro skill requires SMF Works subscription")
+                return False
+        except Exception:
             return False
         return True
-    
-    def validate_token():
-        return True
 
-
-# Default configuration
 DEFAULT_CONFIG = {
-    "home_location": {
-        "address": "",
-        "lat": 0.0,
-        "lon": 0.0
-    },
-    "work_location": {
-        "address": "",
-        "lat": 0.0,
-        "lon": 0.0
-    },
+    "home": {"address": "", "lat": 0, "lon": 0},
+    "work": {"address": "", "lat": 0, "lon": 0},
     "weather_api_key": "",
-    "transit_api_key": "",  # Optional: for public transit
-    "departure_time": "08:00",  # 24-hour format
-    "mode": "driving",  # driving, transit, walking, bicycling
-    "units": "imperial",  # imperial or metric
-    "include_alternatives": True,
-    "alert_threshold_minutes": 10  # Alert if delay > 10 min
+    "departure_time": "08:00",
+    "units": "imperial"
 }
 
-# Weather icons
-WEATHER_ICONS = {
-    "clear": "☀️",
-    "clouds": "☁️",
-    "rain": "🌧️",
-    "drizzle": "🌦️",
-    "thunderstorm": "⛈️",
-    "snow": "🌨️",
-    "mist": "🌫️",
-    "fog": "🌫️",
-    "haze": "🌫️",
-}
-
-
-def load_config(config_path: Optional[str] = None) -> Dict:
-    """Load configuration from file or return defaults."""
-    if config_path and os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-            merged = DEFAULT_CONFIG.copy()
-            merged.update(config)
-            return merged
-    
-    standard_config = os.path.expanduser("~/.config/smf/skills/morning-commute/config.json")
-    if os.path.exists(standard_config):
-        with open(standard_config, 'r') as f:
-            config = json.load(f)
-            merged = DEFAULT_CONFIG.copy()
-            merged.update(config)
-            return merged
-    
+def load_config():
+    config_path = os.path.expanduser("~/.config/smf/skills/morning-commute/config.json")
+    if os.path.exists(config_path):
+        with open(config_path) as f:
+            config = DEFAULT_CONFIG.copy()
+            config.update(json.load(f))
+            return config
     return DEFAULT_CONFIG.copy()
 
-
-def save_config(config: Dict, config_path: str):
-    """Save configuration to file."""
+def save_config(config):
+    config_path = os.path.expanduser("~/.config/smf/skills/morning-commute/config.json")
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=2)
     os.chmod(config_path, 0o600)
 
-
-def geocode_address(address: str) -> Optional[Tuple[float, float]]:
-    """Geocode address to lat/lon using Nominatim (OpenStreetMap).
-    
-    Free, no API key required. Be respectful with usage.
-    """
+def geocode_address(address):
+    """Free geocoding via OpenStreetMap Nominatim."""
     try:
-        encoded = urllib.parse.quote(address)
-        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&limit=1"
-        
-        req = urllib.request.Request(
-            url,
-            headers={'User-Agent': 'SMF-MorningCommute/1.0'}
-        )
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            if data and len(data) > 0:
-                lat = float(data[0]['lat'])
-                lon = float(data[0]['lon'])
-                return (lat, lon)
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(address)}&format=json&limit=1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'SMF-MorningCommute/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read().decode())
+            if data:
+                return float(data[0]['lat']), float(data[0]['lon'])
     except Exception as e:
-        print(f"⚠️  Geocoding error: {e}", file=sys.stderr)
-    
+        print(f"Geocoding error: {e}", file=sys.stderr)
     return None
 
-
-def fetch_weather(api_key: str, lat: float, lon: float, units: str = "imperial") -> Optional[Dict]:
-    """Fetch current weather from OpenWeatherMap."""
-    if not api_key:
-        return None
-    
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units={units}"
-    
-    ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
-    
+def get_route(home_lat, home_lon, work_lat, work_lon):
+    """Free routing via OSRM demo server."""
     try:
+        # Use HTTPS for OSRM API
+        url = f"https://router.project-osrm.org/route/v1/driving/{home_lon},{home_lat};{work_lon},{work_lat}?overview=false"
         req = urllib.request.Request(url, headers={'User-Agent': 'SMF-MorningCommute/1.0'})
-        with urllib.request.urlopen(req, context=ssl_context, timeout=30) as response:
-            return json.loads(response.read().decode('utf-8'))
-    except urllib.error.HTTPError as e:
-        if e.code == 401:
-            print("❌ Invalid weather API key", file=sys.stderr)
-        return None
-    except Exception as e:
-        print(f"⚠️  Weather fetch error: {e}", file=sys.stderr)
-        return None
-
-
-def format_weather(weather_data: Dict, units: str) -> str:
-    """Format weather data for display."""
-    if not weather_data:
-        return "🌤️ Weather data unavailable"
-    
-    try:
-        temp = round(weather_data['main']['temp'])
-        description = weather_data['weather'][0]['description']
-        main_weather = weather_data['weather'][0]['main'].lower()
-        icon = WEATHER_ICONS.get(main_weather, "🌤️")
-        unit_symbol = "°F" if units == "imperial" else "°C"
-        
-        return f"{icon} {temp}{unit_symbol}, {description}"
-    except KeyError:
-        return "🌤️ Weather data incomplete"
-
-
-def get_route_info_osrm(start_lat: float, start_lon: float, end_lat: float, end_lon: float) -> Optional[Dict]:
-    """Get route info using OSRM (Open Source Routing Machine).
-    
-    Free, no API key required. Limited to OSM coverage.
-    """
-    try:
-        # OSRM demo server - for production, self-host or use paid service
-        url = f"http://router.project-osrm.org/route/v1/driving/{start_lon},{start_lat};{end_lon},{end_lat}?overview=false"
-        
-        req = urllib.request.Request(url, headers={'User-Agent': 'SMF-MorningCommute/1.0'})
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            
-            if data.get('code') == 'Ok' and data.get('routes'):
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read().decode())
+            if data.get('code') == 'Ok':
                 route = data['routes'][0]
-                duration_sec = route['duration']
-                distance_m = route['distance']
-                
                 return {
-                    'duration_min': round(duration_sec / 60),
-                    'distance_mi': round(distance_m / 1609.34, 1),  # meters to miles
-                    'distance_km': round(distance_m / 1000, 1)
+                    'duration': round(route['duration'] / 60),  # minutes
+                    'distance': round(route['distance'] / 1609.34, 1)  # miles
                 }
     except Exception as e:
-        print(f"⚠️  Routing error: {e}", file=sys.stderr)
-    
+        print(f"Routing error: {e}", file=sys.stderr)
     return None
 
-
-def estimate_traffic_delay(base_duration: int, hour: int, minute: int) -> int:
-    """Estimate traffic delay based on time of day.
-    
-    Simple heuristic - for accurate traffic, use Google Maps API (paid).
-    """
-    # Rush hour multipliers
-    time_val = hour + minute / 60
-    
-    # Morning rush: 7-9 AM
-    if 7 <= time_val <= 9:
-        return int(base_duration * 0.3)  # 30% longer
-    
-    # Evening rush: 5-7 PM
-    if 17 <= time_val <= 19:
-        return int(base_duration * 0.4)  # 40% longer
-    
-    # Mid-day: slight delay
-    if 12 <= time_val <= 14:
-        return int(base_duration * 0.1)
-    
-    return 0
-
-
-def format_route_info(route_info: Optional[Dict], delay: int, units: str) -> str:
-    """Format route info for display."""
-    if not route_info:
-        return "🚗 Route info unavailable (configure locations)"
-    
-    base_duration = route_info['duration_min']
-    total_duration = base_duration + delay
-    
-    distance = route_info['distance_mi'] if units == "imperial" else route_info['distance_km']
-    distance_unit = "mi" if units == "imperial" else "km"
-    
-    lines = [f"🚗 Commute: {total_duration} min ({distance} {distance_unit})"]
-    
-    if delay > 0:
-        lines.append(f"   ⚠️  Traffic delay: +{delay} min")
-        lines.append(f"   Normal time: {base_duration} min")
-    else:
-        lines.append(f"   ✅ Clear route")
-    
-    return "\n".join(lines)
-
-
-def get_departure_alert(departure_time: str, delay_min: int) -> str:
-    """Generate departure time alert."""
+def get_weather(api_key, lat, lon, units="imperial"):
+    """OpenWeatherMap current weather."""
+    if not api_key:
+        return None
     try:
-        # Parse departure time
-        dep_hour, dep_min = map(int, departure_time.split(':'))
-        
-        # Calculate recommended departure
-        total_delay = timedelta(minutes=delay_min + 5)  # +5 min buffer
-        dep_time = datetime.now().replace(hour=dep_hour, minute=dep_min, second=0, microsecond=0)
-        recommended = dep_time - total_delay
-        
-        lines = [f"⏰ Departure Alert"]
-        lines.append(f"   Target arrival: {departure_time}")
-        lines.append(f"   Leave by: {recommended.strftime('%I:%M %p')}")
-        
-        return "\n".join(lines)
-    except Exception:
-        return "⏰ Configure departure time for alerts"
+        url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units={units}"
+        # Use secure SSL context with certificate verification enabled
+        ssl_ctx = ssl.create_default_context()
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, context=ssl_ctx, timeout=30) as r:
+            return json.loads(r.read().decode())
+    except Exception as e:
+        print(f"Weather error: {e}", file=sys.stderr)
+    return None
 
-
-def generate_commute_briefing(config: Dict, test_mode: bool = False) -> str:
-    """Generate the full morning commute briefing."""
-    # Check subscription
+def generate_briefing(config, test_mode=False):
     if not test_mode and not require_subscription():
         return ""
     
-    # Get locations
-    home = config.get('home_location', {})
-    work = config.get('work_location', {})
+    home = config.get('home', {})
+    work = config.get('work', {})
     
-    # Get weather at home
-    weather_str = "🌤️ Weather unavailable"
-    api_key = config.get('weather_api_key')
-    if api_key and home.get('lat') and home.get('lon'):
-        weather_data = fetch_weather(api_key, home['lat'], home['lon'], config.get('units', 'imperial'))
-        weather_str = format_weather(weather_data, config.get('units', 'imperial'))
+    lines = ["🚗 Morning Commute Briefing", f"📅 {datetime.now().strftime('%A, %B %d, %Y')}", ""]
     
-    # Get route info
-    route_str = "🚗 Route unavailable (configure home & work)"
-    departure_alert = "⏰ Configure departure time"
+    # Weather
+    weather_key = config.get('weather_api_key')
+    if weather_key and home.get('lat'):
+        w = get_weather(weather_key, home['lat'], home['lon'], config.get('units', 'imperial'))
+        if w:
+            temp = round(w['main']['temp'])
+            desc = w['weather'][0]['description']
+            unit = "°F" if config.get('units') == 'imperial' else "°C"
+            lines.append(f"🌤️ {temp}{unit}, {desc}")
+            lines.append("")
     
-    if home.get('lat') and home.get('lon') and work.get('lat') and work.get('lon'):
-        route_info = get_route_info_osrm(
-            home['lat'], home['lon'],
-            work['lat'], work['lon']
-        )
-        
-        if route_info:
-            # Calculate delay
-            dep_time = config.get('departure_time', '08:00')
-            try:
-                dep_hour, dep_min = map(int, dep_time.split(':'))
-            except:
-                dep_hour, dep_min = 8, 0
-            
-            delay = estimate_traffic_delay(route_info['duration_min'], dep_hour, dep_min)
-            
-            route_str = format_route_info(route_info, delay, config.get('units', 'imperial'))
-            departure_alert = get_departure_alert(dep_time, delay)
+    # Route
+    if home.get('lat') and work.get('lat'):
+        route = get_route(home['lat'], home['lon'], work['lat'], work['lon'])
+        if route:
+            lines.append(f"🚗 Commute: {route['duration']} min ({route['distance']} mi)")
+            # Simple traffic estimate (rush hour check)
+            hour = datetime.now().hour
+            if 7 <= hour <= 9:
+                delay = int(route['duration'] * 0.3)
+                lines.append(f"   ⚠️ Traffic delay: +{delay} min")
+            lines.append("")
     
-    # Build briefing
-    now = datetime.now()
+    # Departure
+    dep_time = config.get('departure_time', '08:00')
+    lines.append(f"⏰ Target arrival: {dep_time}")
+    lines.append("")
     
-    lines = [
-        f"🚗 Morning Commute Briefing — {now.strftime('%A, %B %d')}",
-        "",
-        weather_str,
-        "",
-        route_str,
-        "",
-        departure_alert,
-        "",
+    lines.extend([
         "—",
         "Powered by SMF Works Morning Commute",
-        "Configure: smf run morning-commute --configure",
-        "Subscribe: https://smf.works/subscribe"
-    ]
+        "Configure: smf run morning-commute --configure"
+    ])
     
     return "\n".join(lines)
 
-
-def configure_skill():
-    """Interactive configuration wizard."""
-    print("🚗 Morning Commute - Configuration")
+def configure():
+    print("🚗 Morning Commute Configuration")
     print("=" * 50)
-    print()
-    
     config = load_config()
     
-    # Step 1: Home Location
-    print("Step 1: Home Location")
-    print("Enter your home address (e.g., '123 Main St, Pittsboro, NC')")
-    home_address = input("Home address: ").strip()
-    
-    if home_address:
-        print("Geocoding address...")
-        coords = geocode_address(home_address)
+    print("\nStep 1: Home Address")
+    home_addr = input("Home address: ").strip()
+    if home_addr:
+        config['home']['address'] = home_addr
+        coords = geocode_address(home_addr)
         if coords:
-            config['home_location']['address'] = home_address
-            config['home_location']['lat'] = coords[0]
-            config['home_location']['lon'] = coords[1]
-            print(f"✅ Found: {coords[0]:.4f}, {coords[1]:.4f}")
-        else:
-            print("⚠️  Could not geocode. You'll need to enter coordinates manually.")
-            config['home_location']['address'] = home_address
+            config['home']['lat'] = coords[0]
+            config['home']['lon'] = coords[1]
+            print(f"✅ Located: {coords[0]:.4f}, {coords[1]:.4f}")
     
-    # Step 2: Work Location
-    print("\nStep 2: Work Location")
-    print("Enter your work address")
-    work_address = input("Work address: ").strip()
-    
-    if work_address:
-        print("Geocoding address...")
-        coords = geocode_address(work_address)
+    print("\nStep 2: Work Address")
+    work_addr = input("Work address: ").strip()
+    if work_addr:
+        config['work']['address'] = work_addr
+        coords = geocode_address(work_addr)
         if coords:
-            config['work_location']['address'] = work_address
-            config['work_location']['lat'] = coords[0]
-            config['work_location']['lon'] = coords[1]
-            print(f"✅ Found: {coords[0]:.4f}, {coords[1]:.4f}")
-        else:
-            print("⚠️  Could not geocode.")
-            config['work_location']['address'] = work_address
+            config['work']['lat'] = coords[0]
+            config['work']['lon'] = coords[1]
+            print(f"✅ Located: {coords[0]:.4f}, {coords[1]:.4f}")
     
-    # Step 3: Weather API
     print("\nStep 3: Weather API (Optional)")
-    print("Get free API key at: https://openweathermap.org/api")
-    print("Adds current conditions to your briefing")
+    print("Get free key at: https://openweathermap.org/api")
+    w_key = input("API key (Enter to skip): ").strip()
+    if w_key:
+        config['weather_api_key'] = w_key
     
-    weather_key = input("OpenWeatherMap API key (press Enter to skip): ").strip()
-    if weather_key:
-        config['weather_api_key'] = weather_key
+    print("\nStep 4: Settings")
+    dep = input("Target arrival time [08:00]: ").strip()
+    if dep:
+        config['departure_time'] = dep
     
-    # Step 4: Departure Time
-    print("\nStep 4: Departure Settings")
-    dep_time = input("Target arrival time (HH:MM, 24h) [08:00]: ").strip()
-    if dep_time:
-        config['departure_time'] = dep_time
-    
-    units = input("Units (imperial/metric) [imperial]: ").strip().lower()
-    if units in ['imperial', 'metric']:
-        config['units'] = units
-    
-    # Step 5: Schedule
-    print("\nStep 5: Schedule")
-    print("Recommended: Run weekday mornings at 6:30 AM")
-    print("Command: openclaw cron add --name 'morning-commute' --schedule '30 6 * * 1-5' --command 'smf run morning-commute'")
-    
-    # Save config
-    config_path = os.path.expanduser("~/.config/smf/skills/morning-commute/config.json")
-    save_config(config, config_path)
-    
-    print(f"\n✅ Configuration saved to: {config_path}")
-    print("\nYour Morning Commute briefing is ready!")
+    save_config(config)
+    print("\n✅ Configuration saved!")
     print("Run: smf run morning-commute")
-    
     return True
 
-
 def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Morning Commute - Your commute briefing with traffic and weather",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  smf run morning-commute              # Generate commute briefing
-  smf run morning-commute --configure  # Run configuration wizard
-  smf run morning-commute --test-mode  # Test without subscription check
-  smf run morning-commute --output json # Output as JSON
-        """
-    )
-    
-    parser.add_argument(
-        '--configure', '-c',
-        action='store_true',
-        help='Run configuration wizard'
-    )
-    
-    parser.add_argument(
-        '--test-mode', '-t',
-        action='store_true',
-        help='Test mode (skip subscription check)'
-    )
-    
-    parser.add_argument(
-        '--output', '-o',
-        choices=['text', 'json'],
-        default='text',
-        help='Output format (default: text)'
-    )
-    
+    parser = argparse.ArgumentParser(description="Morning Commute Briefing")
+    parser.add_argument('--configure', '-c', action='store_true', help='Configure skill')
+    parser.add_argument('--test-mode', '-t', action='store_true', help='Skip subscription check')
     args = parser.parse_args()
     
-    # Configuration mode
     if args.configure:
-        success = configure_skill()
-        sys.exit(0 if success else 1)
+        configure()
+        return
     
-    # Load config
     config = load_config()
-    
-    # Generate briefing
-    briefing = generate_commute_briefing(config, test_mode=args.test_mode)
-    
-    if not briefing:
-        sys.exit(1)
-    
-    if args.output == 'json':
-        result = {
-            "success": True,
-            "timestamp": datetime.now().isoformat(),
-            "content": briefing,
-            "config": {
-                "home": config.get('home_location', {}).get('address'),
-                "work": config.get('work_location', {}).get('address'),
-            }
-        }
-        print(json.dumps(result, indent=2))
-    else:
+    briefing = generate_briefing(config, test_mode=args.test_mode)
+    if briefing:
         print(briefing)
-
 
 if __name__ == "__main__":
     main()

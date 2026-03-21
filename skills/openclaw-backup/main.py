@@ -55,10 +55,13 @@ DEFAULT_CONFIG = {
 def load_config():
     config_path = os.path.expanduser("~/.config/smf/skills/openclaw-backup/config.json")
     if os.path.exists(config_path):
-        with open(config_path) as f:
-            config = DEFAULT_CONFIG.copy()
-            config.update(json.load(f))
-            return config
+        try:
+            with open(config_path) as f:
+                config = DEFAULT_CONFIG.copy()
+                config.update(json.load(f))
+                return config
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"⚠️  Config error, using defaults: {e}", file=sys.stderr)
     return DEFAULT_CONFIG.copy()
 
 
@@ -75,8 +78,83 @@ def get_backup_dir(config):
     return os.path.expanduser(config.get('backup_dir', '~/.smf/backups'))
 
 
+def calculate_dir_size(path):
+    """Calculate directory size in bytes."""
+    total = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            try:
+                fp = os.path.join(dirpath, f)
+                if not os.path.islink(fp):
+                    total += os.path.getsize(fp)
+            except OSError:
+                pass
+    return total
+
+
+def verify_backup(backup_path: str, is_archive: bool = True) -> Dict:
+    """Verify backup integrity."""
+    print(f"\n🔍 Verifying backup...")
+    
+    if not os.path.exists(backup_path):
+        return {"success": False, "error": "Backup file not found"}
+    
+    if is_archive:
+        try:
+            with tarfile.open(backup_path, 'r:gz') as tar:
+                # Get list of members (this validates structure)
+                members = tar.getmembers()
+                # Verify each member is valid
+                for member in members:
+                    if not member.name or '..' in member.name or member.name.startswith('/'):
+                        return {"success": False, "error": "Suspicious path in archive"}
+                
+                size = sum(m.size for m in members)
+                
+                return {
+                    "success": True,
+                    "files": len(members),
+                    "size": size,
+                    "message": "Backup verified successfully"
+                }
+        except tarfile.TarError as e:
+            return {"success": False, "error": f"Archive corrupted: {e}"}
+        except Exception as e:
+            return {"success": False, "error": f"Verification failed: {e}"}
+    else:
+        # Uncompressed backup - verify files exist
+        try:
+            if not os.path.isdir(backup_path):
+                return {"success": False, "error": "Backup directory not found"}
+            
+            # Check if at least one file exists
+            file_count = sum(len(files) for _, _, files in os.walk(backup_path))
+            
+            if file_count == 0:
+                return {"success": False, "error": "Backup directory is empty"}
+            
+            return {
+                "success": True,
+                "files": file_count,
+                "message": "Backup directory verified"
+            }
+        except Exception as e:
+            return {"success": False, "error": f"Verification failed: {e}"}
+
+
+def tar_filter_factory(exclude_patterns):
+    """Factory for creating tar filter function with exclude patterns."""
+    def filter_func(tarinfo):
+        # Check if any exclude pattern is in the path
+        for pattern in exclude_patterns:
+            if pattern in tarinfo.name:
+                return None
+        return tarinfo
+    return filter_func
+
+
 def create_backup(config, test_mode=False):
-    """Create a new backup of OpenClaw."""
+    """Create a new backup of OpenClaw with progress indication."""
     if not test_mode and not require_subscription():
         return None
     
@@ -86,7 +164,8 @@ def create_backup(config, test_mode=False):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_name = f"openclaw_backup_{timestamp}"
     
-    if config.get('compress', True):
+    is_compressed = config.get('compress', True)
+    if is_compressed:
         backup_path = os.path.join(backup_dir, f"{backup_name}.tar.gz")
     else:
         backup_path = os.path.join(backup_dir, backup_name)
@@ -97,17 +176,29 @@ def create_backup(config, test_mode=False):
     print(f"📦 Creating backup: {backup_name}")
     print(f"   Destination: {backup_path}")
     
+    processed = 0
+    skipped = 0
+    errors = []
+    
     try:
-        if config.get('compress', True):
-            # Create tar.gz archive
+        if is_compressed:
+            # Create tar.gz archive with progress
             with tarfile.open(backup_path, 'w:gz') as tar:
                 for path in include_paths:
                     if os.path.exists(path):
                         arcname = os.path.basename(path)
-                        tar.add(path, arcname=arcname, 
-                               filter=lambda x: None if any(p in x.name for p in exclude_patterns) else x)
-                        print(f"   ✓ Added: {path}")
+                        try:
+                            tar.add(
+                                path, 
+                                arcname=arcname, 
+                                filter=tar_filter_factory(exclude_patterns)
+                            )
+                            processed += 1
+                            print(f"   ✓ Added: {path}")
+                        except Exception as e:
+                            errors.append(f"Failed to add {path}: {e}")
                     else:
+                        skipped += 1
                         print(f"   ⚠ Skipped (not found): {path}")
         else:
             # Create uncompressed copy
@@ -115,21 +206,43 @@ def create_backup(config, test_mode=False):
             for path in include_paths:
                 if os.path.exists(path):
                     dest = os.path.join(backup_path, os.path.basename(path))
-                    if os.path.isdir(path):
-                        shutil.copytree(path, dest, ignore=shutil.ignore_patterns(*exclude_patterns))
-                    else:
-                        shutil.copy2(path, dest)
-                    print(f"   ✓ Added: {path}")
+                    try:
+                        if os.path.isdir(path):
+                            shutil.copytree(path, dest, 
+                                ignore=shutil.ignore_patterns(*exclude_patterns),
+                                dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(path, dest)
+                        processed += 1
+                        print(f"   ✓ Added: {path}")
+                    except Exception as e:
+                        errors.append(f"Failed to copy {path}: {e}")
                 else:
+                    skipped += 1
                     print(f"   ⚠ Skipped (not found): {path}")
+        
+        # Progress summary
+        print(f"\n   Processed: {processed} items")
+        if skipped:
+            print(f"   Skipped: {skipped} items")
+        if errors:
+            print(f"   Errors: {len(errors)}")
+            for err in errors[:3]:  # Show first 3 errors
+                print(f"      • {err}")
         
         # Get backup size
         if os.path.exists(backup_path):
-            size = os.path.getsize(backup_path) if os.path.isfile(backup_path) else \
-                   sum(os.path.getsize(os.path.join(dirpath, f)) 
-                       for dirpath, _, filenames in os.walk(backup_path) 
-                       for f in filenames)
+            if os.path.isfile(backup_path):
+                size = os.path.getsize(backup_path)
+            else:
+                size = calculate_dir_size(backup_path)
             size_mb = size / (1024 * 1024)
+            
+            # Verify if enabled
+            if config.get('verify', True) and is_compressed:
+                verify_result = verify_backup(backup_path, is_archive=True)
+                if not verify_result['success']:
+                    print(f"\n⚠️  Verification warning: {verify_result.get('error')}")
             
             print(f"\n✅ Backup complete: {backup_name}")
             print(f"   Size: {size_mb:.2f} MB")
@@ -139,8 +252,13 @@ def create_backup(config, test_mode=False):
                 'name': backup_name,
                 'path': backup_path,
                 'size_mb': size_mb,
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'processed': processed,
+                'skipped': skipped
             }
+        else:
+            print("\n❌ Backup file not created", file=sys.stderr)
+            return None
     
     except Exception as e:
         print(f"\n❌ Backup failed: {e}", file=sys.stderr)
@@ -159,18 +277,23 @@ def list_backups(config):
     for item in os.listdir(backup_dir):
         if item.startswith('openclaw_backup_'):
             path = os.path.join(backup_dir, item)
-            stat = os.stat(path)
-            size = stat.st_size if os.path.isfile(path) else \
-                   sum(os.path.getsize(os.path.join(dirpath, f)) 
-                       for dirpath, _, filenames in os.walk(path) 
-                       for f in filenames)
-            
-            backups.append({
-                'name': item,
-                'path': path,
-                'size_mb': size / (1024 * 1024),
-                'created': datetime.fromtimestamp(stat.st_mtime)
-            })
+            try:
+                stat = os.stat(path)
+                
+                if os.path.isfile(path):
+                    size = stat.st_size
+                else:
+                    size = calculate_dir_size(path)
+                
+                backups.append({
+                    'name': item,
+                    'path': path,
+                    'size_mb': size / (1024 * 1024),
+                    'created': datetime.fromtimestamp(stat.st_mtime)
+                })
+            except OSError as e:
+                print(f"⚠️  Could not read backup {item}: {e}")
+                continue
     
     backups.sort(key=lambda x: x['created'], reverse=True)
     return backups
@@ -183,6 +306,7 @@ def cleanup_old_backups(config):
     
     backups = list_backups(config)
     removed = []
+    errors = []
     
     for backup in backups:
         if backup['created'] < cutoff:
@@ -194,7 +318,10 @@ def cleanup_old_backups(config):
                 removed.append(backup['name'])
                 print(f"   🗑️  Removed old backup: {backup['name']}")
             except Exception as e:
-                print(f"   ⚠️  Failed to remove {backup['name']}: {e}", file=sys.stderr)
+                errors.append(f"Failed to remove {backup['name']}: {e}")
+    
+    if errors:
+        print(f"\n⚠️  {len(errors)} cleanup errors")
     
     return removed
 
@@ -218,6 +345,15 @@ def restore_backup(backup_path, restore_dir=None, test_mode=False):
         os.makedirs(restore_dir, exist_ok=True)
         
         if backup_path.endswith('.tar.gz'):
+            # Verify archive before extracting
+            verify_result = verify_backup(backup_path, is_archive=True)
+            if not verify_result['success']:
+                print(f"⚠️  Backup verification warning: {verify_result.get('error')}")
+                response = input("Continue with restore? (yes/no): ").strip().lower()
+                if response != 'yes':
+                    print("❌ Restore cancelled")
+                    return False
+            
             with tarfile.open(backup_path, 'r:gz') as tar:
                 tar.extractall(restore_dir)
         else:
@@ -240,6 +376,9 @@ def restore_backup(backup_path, restore_dir=None, test_mode=False):
         
         return True
     
+    except tarfile.TarError as e:
+        print(f"\n❌ Archive error: {e}", file=sys.stderr)
+        return False
     except Exception as e:
         print(f"\n❌ Restore failed: {e}", file=sys.stderr)
         return False
@@ -273,7 +412,11 @@ def configure():
     if add:
         config['include_paths'].extend([p.strip() for p in add.split(',')])
     
-    print("\nStep 4: Schedule")
+    print("\nStep 4: Verification")
+    verify = input("Verify backups after creation? (y/n) [y]: ").strip().lower()
+    config['verify'] = verify != 'n'
+    
+    print("\nStep 5: Schedule")
     print("Recommended: Run daily at 1:00 AM")
     print("Command: openclaw cron add --name 'openclaw-backup' --schedule '0 1 * * *' --command 'smf run openclaw-backup'")
     
@@ -341,7 +484,9 @@ Examples:
     if result:
         # Cleanup old backups after successful backup
         print("\n🧹 Cleaning up old backups...")
-        cleanup_old_backups(config)
+        removed = cleanup_old_backups(config)
+        if removed:
+            print(f"\n✅ Removed {len(removed)} old backup(s)")
         print("\n✅ Backup complete!")
     else:
         sys.exit(1)

@@ -14,11 +14,15 @@ import sys
 import csv
 import json
 import smtplib
+import html as html_module
+import re
+import time
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate
 
 # Add shared auth to path
 shared_path = Path(__file__).parent.parent.parent / "shared"
@@ -33,6 +37,11 @@ CAMPAIGNS_DIR = Path.home() / ".smf" / "campaigns"
 LISTS_DIR = Path.home() / ".smf" / "lists"
 LOGS_DIR = Path.home() / ".smf" / "logs"
 
+# Rate limiting configuration
+RATE_LIMIT_DELAY = 2  # seconds between emails
+MAX_EMAILS_PER_BATCH = 100  # break large sends into batches
+BATCH_DELAY = 60  # seconds between batches
+
 
 def ensure_dirs():
     """Ensure campaign directories exist."""
@@ -44,8 +53,41 @@ def ensure_dirs():
 def generate_campaign_id(name: str) -> str:
     """Generate unique campaign ID."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    safe_name = name.lower().replace(" ", "-").replace("_", "-")[:30]
+    safe_name = re.sub(r'[^\w-]', '-', name.lower())[:30]
     return f"{safe_name}-{timestamp}"
+
+
+def validate_email(email: str) -> bool:
+    """Basic email validation with proper regex."""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
+
+
+def sanitize_html_content(content: str) -> str:
+    """Sanitize HTML to prevent XSS and ensure email safety."""
+    # Remove potentially dangerous tags
+    dangerous_tags = ['script', 'iframe', 'object', 'embed', 'form', 'style']
+    for tag in dangerous_tags:
+        # Remove opening and closing tags
+        content = re.sub(f'<{tag}[^\u003e]*>', '', content, flags=re.IGNORECASE)
+        content = re.sub(f'</{tag}>', '', content, flags=re.IGNORECASE)
+    
+    # Ensure unsubscribe link is present
+    if '{{UNSUBSCRIBE_URL}}' not in content and '#unsubscribe' not in content:
+        # Add default unsubscribe footer if missing
+        content += '\n\n<p style="font-size: 12px; color: #666; margin-top: 20px;">'
+        content += '<hr>\n'
+        content += '<a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a> | '
+        content += 'You received this because you subscribed to our newsletter.'
+        content += '</p>'
+    
+    return content
+
+
+def create_unsubscribe_token(email: str) -> str:
+    """Generate a simple unsubscribe token (in production, use proper hashing)."""
+    import hashlib
+    return hashlib.sha256(f"{email}:{datetime.now().strftime('%Y%m')}".encode()).hexdigest()[:16]
 
 
 def create_campaign(name: str, subject: str, from_email: str, 
@@ -54,29 +96,39 @@ def create_campaign(name: str, subject: str, from_email: str,
     try:
         ensure_dirs()
         
+        # Validate inputs
+        if not name or not name.strip():
+            return {"success": False, "error": "Campaign name is required"}
+        
+        if subject and len(subject) > 200:
+            return {"success": False, "error": "Subject too long (max 200 chars)"}
+        
+        if from_email and not validate_email(from_email):
+            return {"success": False, "error": "Invalid from_email address"}
+        
         campaign_id = generate_campaign_id(name)
         campaign_dir = CAMPAIGNS_DIR / campaign_id
         campaign_dir.mkdir(parents=True, exist_ok=True)
         
         campaign = {
             "id": campaign_id,
-            "name": name,
-            "subject": subject,
-            "from_email": from_email,
+            "name": name.strip(),
+            "subject": subject[:200] if subject else "",  # Limit length
+            "from_email": from_email.strip().lower() if from_email else "",
             "created_at": datetime.now().isoformat(),
             "status": "draft",
             "template": template or "default",
             "sent_count": 0,
             "open_count": 0,
-            "click_count": 0
+            "click_count": 0,
+            "unsubscribe_count": 0
         }
         
         # Save campaign config
         config_file = campaign_dir / "config.json"
         config_file.write_text(json.dumps(campaign, indent=2))
         
-        # Create email body template
-        body_file = campaign_dir / "body.html"
+        # Create email body template with unsubscribe
         if template == "newsletter":
             body_content = """<!DOCTYPE html>
 <html>
@@ -101,7 +153,7 @@ def create_campaign(name: str, subject: str, from_email: str,
         </div>
         <div class="footer">
             <p>You're receiving this because you subscribed to our newsletter.</p>
-            <p><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a></p>
+            <p><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a> | <a href="{{PREFERENCES_URL}}">Email Preferences</a></p>
         </div>
     </div>
 </body>
@@ -114,14 +166,17 @@ def create_campaign(name: str, subject: str, from_email: str,
         <p>Hello {{FIRST_NAME}},</p>
         <p>Your email content here...</p>
         <p>Best regards,<br>{{FROM_NAME}}</p>
-        <hr>
+        <hr style="margin-top: 40px;">
         <p style="font-size: 12px; color: #666;">
-            <a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a>
+            You're receiving this because you subscribed to our newsletter.<br>
+            <a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a> | 
+            <a href="{{PREFERENCES_URL}}">Email Preferences</a>
         </p>
     </div>
 </body>
 </html>"""
         
+        body_file = campaign_dir / "body.html"
         body_file.write_text(body_content)
         
         return {
@@ -175,90 +230,126 @@ def load_email_body(campaign_id: str) -> str:
     body_file = campaign_dir / "body.html"
     
     if body_file.exists():
-        return body_file.read_text()
+        content = body_file.read_text()
+        return sanitize_html_content(content)
     return "<p>Hello {{FIRST_NAME}},</p><p>Email content here...</p>"
 
 
 def load_mailing_list(list_file: str) -> List[Dict]:
-    """Load mailing list from CSV."""
+    """Load mailing list from CSV with validation."""
     try:
-        list_path = Path(list_file).expanduser()
+        list_path = Path(list_file).expanduser().resolve()
         
         if not list_path.exists():
             return []
         
+        recipients = []
         with open(list_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
-            return list(reader)
+            for row in reader:
+                # Validate email
+                email = row.get("email", "").strip()
+                if validate_email(email):
+                    recipients.append(row)
+        
+        return recipients
             
     except Exception as e:
         return []
 
 
 def validate_email_list(email_list: List[Dict]) -> List[Dict]:
-    """Validate and clean email list."""
+    """Validate and clean email list, removing duplicates."""
     valid = []
     seen = set()
+    invalid_count = 0
     
     for row in email_list:
         email = row.get("email", "").strip().lower()
         
-        # Basic validation
-        if "@" in email and "." in email.split("@")[-1]:
+        if validate_email(email):
             if email not in seen:
                 seen.add(email)
                 valid.append(row)
+        else:
+            invalid_count += 1
+    
+    if invalid_count > 0:
+        print(f"⚠️  {invalid_count} invalid email(s) skipped")
     
     return valid
 
 
 def personalize_email(template: str, recipient: Dict, campaign: Dict) -> str:
-    """Personalize email template with recipient data."""
+    """Personalize email template with recipient data, safely."""
     email = template
     
-    # Replace variables
-    email = email.replace("{{FIRST_NAME}}", recipient.get("first_name", "Friend"))
-    email = email.replace("{{LAST_NAME}}", recipient.get("last_name", ""))
-    email = email.replace("{{EMAIL}}", recipient.get("email", ""))
-    email = email.replace("{{CAMPAIGN_NAME}}", campaign.get("name", ""))
-    email = email.replace("{{FROM_NAME}}", campaign.get("from_email", "").split("@")[0])
-    email = email.replace("{{UNSUBSCRIBE_URL}}", f"#unsubscribe-{recipient.get('email', '')}")
+    # Get recipient data with safe defaults
+    first_name = html_module.escape(recipient.get("first_name", "Friend"))
+    last_name = html_module.escape(recipient.get("last_name", ""))
+    email_addr = html_module.escape(recipient.get("email", ""))
     
-    # Replace custom fields
-    for key, value in recipient.items():
-        placeholder = f"{{{{{key.upper()}}}}}"
-        email = email.replace(placeholder, str(value))
+    # Generate unsubscribe URL
+    unsubscribe_token = create_unsubscribe_token(recipient.get("email", ""))
+    unsubscribe_url = f"https://smf.works/unsubscribe?token={unsubscribe_token}"
+    preferences_url = f"https://smf.works/preferences?token={unsubscribe_token}"
+    
+    # Replace variables
+    email = email.replace("{{FIRST_NAME}}", first_name)
+    email = email.replace("{{LAST_NAME}}", last_name)
+    email = email.replace("{{EMAIL}}", email_addr)
+    email = email.replace("{{CAMPAIGN_NAME}}", html_module.escape(campaign.get("name", "")))
+    email = email.replace("{{FROM_NAME}}", html_module.escape(campaign.get("from_email", "").split("@")[0]))
+    email = email.replace("{{UNSUBSCRIBE_URL}}", html_module.escape(unsubscribe_url))
+    email = email.replace("{{PREFERENCES_URL}}", html_module.escape(preferences_url))
     
     return email
 
 
 def send_email_smtp(to_email: str, subject: str, body: str, from_email: str,
-                   smtp_host: str, smtp_port: int, smtp_user: str, smtp_pass: str) -> bool:
-    """Send single email via SMTP."""
+                   smtp_config: Dict) -> tuple[bool, str]:
+    """Send single email via SMTP with error handling."""
     try:
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = from_email
-        msg['To'] = to_email
+        host = smtp_config.get('host', '')
+        port = int(smtp_config.get('port', 587))
+        user = smtp_config.get('user', '')
+        password = smtp_config.get('pass', '')
         
-        html_part = MIMEText(body, 'html')
+        if not all([host, user, password]):
+            return False, "Incomplete SMTP configuration"
+        
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject[:200]  # Limit subject length
+        msg['From'] = from_email if from_email and validate_email(from_email) else user
+        msg['To'] = to_email
+        msg['Date'] = formatdate(localtime=True)
+        
+        # Add List-Unsubscribe header (RFC 2369)
+        msg['List-Unsubscribe'] = f"<mailto:unsubscribe@smf.works?subject=unsubscribe {to_email}>"
+        
+        html_part = MIMEText(body, 'html', 'utf-8')
         msg.attach(html_part)
         
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
+        with smtplib.SMTP(host, port, timeout=30) as server:
             server.starttls()
-            server.login(smtp_user, smtp_pass)
+            server.login(user, password)
             server.send_message(msg)
         
-        return True
+        return True, "Sent"
         
+    except smtplib.SMTPAuthenticationError:
+        return False, "SMTP authentication failed"
+    except smtplib.SMTPRecipientsRefused:
+        return False, "Recipient refused"
+    except smtplib.SMTPException as e:
+        return False, f"SMTP error: {str(e)[:50]}"
     except Exception as e:
-        print(f"  ❌ Failed to send to {to_email}: {e}")
-        return False
+        return False, f"Error: {str(e)[:50]}"
 
 
 def send_campaign(campaign_id: str, list_file: str, 
                  smtp_config: Dict = None, dry_run: bool = True) -> Dict:
-    """Send campaign to mailing list."""
+    """Send campaign to mailing list with rate limiting."""
     try:
         campaign = load_campaign(campaign_id)
         if not campaign:
@@ -271,6 +362,9 @@ def send_campaign(campaign_id: str, list_file: str,
         
         # Validate emails
         valid_list = validate_email_list(email_list)
+        
+        if not valid_list:
+            return {"success": False, "error": "No valid recipients after validation"}
         
         print(f"\n📧 Sending Campaign: {campaign['name']}")
         print(f"   Recipients: {len(valid_list)}")
@@ -291,29 +385,34 @@ def send_campaign(campaign_id: str, list_file: str,
         if not smtp_config:
             return {"success": False, "error": "SMTP configuration required"}
         
-        # Load email template
+        # Load and sanitize email template
         template = load_email_body(campaign_id)
         
-        # Send emails
+        # Send emails with rate limiting
         sent = 0
         failed = 0
+        failures = []
         
         print(f"\n🚀 Sending emails...")
+        print(f"   Rate limit: 1 email / {RATE_LIMIT_DELAY}s")
+        print(f"   Batch size: {MAX_EMAILS_PER_BATCH} emails")
         
         for i, recipient in enumerate(valid_list, 1):
+            # Check for batch delay
+            if i > 1 and i % MAX_EMAILS_PER_BATCH == 1:
+                print(f"\n⏸️  Batch complete. Pausing {BATCH_DELAY}s before next batch...")
+                time.sleep(BATCH_DELAY)
+            
             # Personalize
             personalized_body = personalize_email(template, recipient, campaign)
             
             # Send
-            success = send_email_smtp(
+            success, message = send_email_smtp(
                 recipient.get("email"),
                 campaign['subject'],
                 personalized_body,
                 campaign['from_email'],
-                smtp_config['host'],
-                smtp_config['port'],
-                smtp_config['user'],
-                smtp_config['pass']
+                smtp_config
             )
             
             if success:
@@ -321,10 +420,16 @@ def send_campaign(campaign_id: str, list_file: str,
                 print(f"  ✅ {i}/{len(valid_list)}: {recipient.get('email')}")
             else:
                 failed += 1
-                print(f"  ❌ {i}/{len(valid_list)}: {recipient.get('email')}")
+                failures.append(f"{recipient.get('email')}: {message}")
+                print(f"  ❌ {i}/{len(valid_list)}: {recipient.get('email')} - {message}")
+            
+            # Rate limiting
+            if i < len(valid_list):
+                time.sleep(RATE_LIMIT_DELAY)
         
         # Update campaign stats
         campaign['sent_count'] = sent
+        campaign['failed_count'] = failed
         campaign['status'] = 'sent'
         campaign['sent_at'] = datetime.now().isoformat()
         
@@ -338,12 +443,17 @@ def send_campaign(campaign_id: str, list_file: str,
             f.write(f"Sent: {sent}\n")
             f.write(f"Failed: {failed}\n")
             f.write(f"Time: {datetime.now().isoformat()}\n")
+            if failures:
+                f.write("\nFailures:\n")
+                for fail in failures[:20]:  # Log first 20 failures
+                    f.write(f"  {fail}\n")
         
         return {
             "success": True,
             "sent": sent,
             "failed": failed,
-            "total": len(valid_list)
+            "total": len(valid_list),
+            "rate_limited": True
         }
         
     except Exception as e:
@@ -379,6 +489,7 @@ def get_campaign_stats(campaign_id: str) -> Dict:
         "sent_count": campaign.get("sent_count", 0),
         "open_count": campaign.get("open_count", 0),
         "click_count": campaign.get("click_count", 0),
+        "unsubscribe_count": campaign.get("unsubscribe_count", 0),
         "template": campaign.get("template")
     }
 
@@ -435,6 +546,10 @@ def interactive_create():
     subject = input("Email subject: ").strip()
     from_email = input("From email: ").strip()
     
+    # Validate from_email
+    if from_email and not validate_email(from_email):
+        print("⚠️  Warning: From email appears invalid")
+    
     print("\nTemplate:")
     print("  1. Default (simple)")
     print("  2. Newsletter (styled)")
@@ -449,7 +564,7 @@ def show_help():
     """Show help message."""
     print("""📧 Email Campaign Manager
 
-Create and send email campaigns with personalization.
+Create and send email campaigns with personalization and rate limiting.
 
 Commands:
   create                    Create new campaign (interactive)
@@ -461,6 +576,13 @@ Commands:
   stats --campaign ID       Show campaign statistics
   sample-list               Create sample mailing list
   help                      Show this help
+
+Rate Limiting:
+  Emails are sent with a {RATE_LIMIT_DELAY}s delay between each.
+  Large lists ({MAX_EMAILS_PER_BATCH}+) are sent in batches with {BATCH_DELAY}s pauses.
+
+Unsubscribe:
+  All emails automatically include unsubscribe links for compliance.
 
 Examples:
   smf run email-campaign create
@@ -618,6 +740,8 @@ def main():
                 print(f"\n✅ Campaign sent!")
                 print(f"   Sent: {result['sent']}")
                 print(f"   Failed: {result['failed']}")
+                if result.get('rate_limited'):
+                    print(f"   Rate limited: Yes")
         else:
             print(f"❌ Failed: {result.get('error')}")
             return 1
@@ -651,6 +775,7 @@ def main():
         print(f"Sent: {stats['sent_count']}")
         print(f"Opens: {stats['open_count']}")
         print(f"Clicks: {stats['click_count']}")
+        print(f"Unsubscribes: {stats.get('unsubscribe_count', 0)}")
     
     elif command == "sample-list":
         output = "sample-list.csv"

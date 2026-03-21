@@ -13,10 +13,12 @@ Usage:
 
 import sys
 import json
-import uuid
+import fcntl
+import time
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+import uuid
 
 # Add shared auth to path
 shared_path = Path(__file__).parent.parent.parent / "shared"
@@ -29,6 +31,7 @@ SKILL_NAME = "task-manager"
 MIN_TIER = "pro"
 TASKS_DIR = Path.home() / ".smf" / "tasks"
 PROJECTS_FILE = TASKS_DIR / "projects.json"
+LOCK_FILE = TASKS_DIR / ".lock"
 
 # Status columns (Kanban)
 STATUSES = ["backlog", "todo", "in-progress", "review", "done", "archived"]
@@ -42,50 +45,124 @@ def ensure_dirs():
         PROJECTS_FILE.write_text(json.dumps({"projects": []}, indent=2))
 
 
+class FileLock:
+    """Simple file-based lock for preventing race conditions."""
+    
+    def __init__(self, lock_path: Path, timeout: float = 10.0):
+        self.lock_path = lock_path
+        self.timeout = timeout
+        self.lock_file = None
+    
+    def __enter__(self):
+        """Acquire lock with timeout."""
+        start_time = time.time()
+        while True:
+            try:
+                self.lock_file = open(self.lock_path, 'w')
+                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return self
+            except (IOError, OSError):
+                if time.time() - start_time >= self.timeout:
+                    raise TimeoutError("Could not acquire lock")
+                time.sleep(0.1)
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Release lock."""
+        if self.lock_file:
+            try:
+                fcntl.flock(self.lock_file.fileno(), fcntl.LOCK_UN)
+                self.lock_file.close()
+                # Try to remove lock file
+                try:
+                    self.lock_path.unlink()
+                except:
+                    pass
+            except:
+                pass
+        return False
+
+
+def atomic_write_json(file_path: Path, data: Dict):
+    """Write JSON file atomically to prevent data corruption."""
+    temp_path = file_path.with_suffix('.tmp')
+    try:
+        temp_path.write_text(json.dumps(data, indent=2))
+        temp_path.rename(file_path)
+    except Exception as e:
+        # Cleanup temp file on error
+        try:
+            temp_path.unlink()
+        except:
+            pass
+        raise e
+
+
 def generate_task_id() -> str:
-    """Generate unique task ID."""
+    """Generate unique task ID using UUID to prevent collisions."""
     return f"TASK-{uuid.uuid4().hex[:8].upper()}"
 
 
 def load_projects() -> List[Dict]:
-    """Load all projects."""
+    """Load all projects with locking."""
     ensure_dirs()
     try:
-        data = json.loads(PROJECTS_FILE.read_text())
-        return data.get("projects", [])
-    except:
+        with FileLock(LOCK_FILE):
+            data = json.loads(PROJECTS_FILE.read_text())
+            return data.get("projects", [])
+    except (FileNotFoundError, json.JSONDecodeError):
         return []
+    except TimeoutError:
+        print("⚠️  Could not acquire lock, trying without...", file=sys.stderr)
+        try:
+            data = json.loads(PROJECTS_FILE.read_text())
+            return data.get("projects", [])
+        except:
+            return []
 
 
 def save_projects(projects: List[Dict]):
-    """Save projects list."""
+    """Save projects list with atomic write."""
     ensure_dirs()
-    PROJECTS_FILE.write_text(json.dumps({"projects": projects}, indent=2))
+    try:
+        with FileLock(LOCK_FILE):
+            atomic_write_json(PROJECTS_FILE, {"projects": projects})
+    except TimeoutError:
+        print("⚠️  Could not acquire lock for save, retrying...", file=sys.stderr)
+        time.sleep(0.5)
+        atomic_write_json(PROJECTS_FILE, {"projects": projects})
 
 
 def create_project(name: str, description: str = "") -> Dict:
     """Create a new project."""
     try:
-        projects = load_projects()
+        with FileLock(LOCK_FILE):
+            # Reload inside lock
+            try:
+                data = json.loads(PROJECTS_FILE.read_text())
+                projects = data.get("projects", [])
+            except:
+                projects = []
+            
+            # Check if project exists
+            for p in projects:
+                if p["name"].lower() == name.lower():
+                    return {"success": False, "error": f"Project '{name}' already exists"}
+            
+            project = {
+                "id": f"proj-{uuid.uuid4().hex[:8]}",
+                "name": name,
+                "description": description,
+                "created_at": datetime.now().isoformat(),
+                "status": "active"
+            }
+            
+            projects.append(project)
+            atomic_write_json(PROJECTS_FILE, {"projects": projects})
+            
+            return {"success": True, "project": project}
         
-        # Check if project exists
-        for p in projects:
-            if p["name"].lower() == name.lower():
-                return {"success": False, "error": f"Project '{name}' already exists"}
-        
-        project = {
-            "id": f"proj-{uuid.uuid4().hex[:8]}",
-            "name": name,
-            "description": description,
-            "created_at": datetime.now().isoformat(),
-            "status": "active"
-        }
-        
-        projects.append(project)
-        save_projects(projects)
-        
-        return {"success": True, "project": project}
-        
+    except TimeoutError:
+        return {"success": False, "error": "Could not acquire lock - try again"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -104,7 +181,7 @@ def load_tasks(project_id: str = None, status: str = None) -> List[Dict]:
     ensure_dirs()
     
     tasks = []
-    for task_file in TASKS_DIR.glob("task-*.json"):
+    for task_file in TASKS_DIR.glob("TASK-*.json"):
         try:
             task = json.loads(task_file.read_text())
             
@@ -115,7 +192,7 @@ def load_tasks(project_id: str = None, status: str = None) -> List[Dict]:
                 continue
             
             tasks.append(task)
-        except:
+        except (json.JSONDecodeError, IOError):
             continue
     
     # Sort by priority and due date
@@ -129,10 +206,10 @@ def load_tasks(project_id: str = None, status: str = None) -> List[Dict]:
 
 
 def save_task(task: Dict):
-    """Save task to file."""
+    """Save task to file atomically."""
     ensure_dirs()
     task_file = TASKS_DIR / f"{task['id']}.json"
-    task_file.write_text(json.dumps(task, indent=2))
+    atomic_write_json(task_file, task)
 
 
 def create_task(title: str, project_id: str, description: str = "",
@@ -169,13 +246,13 @@ def get_task(task_id: str) -> Optional[Dict]:
     if task_file.exists():
         try:
             return json.loads(task_file.read_text())
-        except:
+        except (json.JSONDecodeError, IOError):
             pass
     return None
 
 
 def update_task(task_id: str, updates: Dict) -> Dict:
-    """Update task fields."""
+    """Update task fields atomically."""
     task = get_task(task_id)
     if not task:
         return {"success": False, "error": "Task not found"}
@@ -205,7 +282,7 @@ def move_task(task_id: str, new_status: str) -> Dict:
 
 
 def delete_task(task_id: str) -> Dict:
-    """Delete a task."""
+    """Archive a task instead of deleting."""
     task_file = TASKS_DIR / f"{task_id}.json"
     
     if not task_file.exists():
@@ -302,9 +379,9 @@ def display_task_list(tasks: List[Dict], title: str = "Tasks"):
         status = task.get('status', 'todo')[:10]
         priority = task.get('priority', 'medium')[:8]
         due = task.get('due_date', '-')[:10]
-        title = task['title'][:28]
+        title_display = task['title'][:28]
         
-        print(f"{task_id:<15} {status:<12} {priority:<10} {due:<12} {title:<30}")
+        print(f"{task_id:<15} {status:<12} {priority:<10} {due:<12} {title_display:<30}")
     
     if len(tasks) > 20:
         print(f"\n... and {len(tasks) - 20} more tasks")

@@ -8,9 +8,56 @@ import os
 import platform
 import shutil
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
+import time
+
+# Rate limiting configuration
+RATE_LIMIT_WINDOW = 60  # seconds
+MAX_CALLS_PER_WINDOW = 30
+
+# Track API calls for rate limiting
+_call_history: List[float] = []
+
+
+def check_rate_limit() -> tuple[bool, Optional[str]]:
+    """
+    Check if we're within rate limits.
+    Returns (allowed, error_message).
+    """
+    global _call_history
+    
+    now = time.time()
+    # Remove calls outside the window
+    _call_history = [t for t in _call_history if now - t < RATE_LIMIT_WINDOW]
+    
+    if len(_call_history) >= MAX_CALLS_PER_WINDOW:
+        return False, f"Rate limit exceeded. Max {MAX_CALLS_PER_WINDOW} calls per {RATE_LIMIT_WINDOW} seconds."
+    
+    _call_history.append(now)
+    return True, None
+
+
+def get_safe_path(path: str) -> tuple[bool, Path, Optional[str]]:
+    """
+    Validate and sanitize a path to prevent path disclosure vulnerabilities.
+    """
+    try:
+        p = Path(path).resolve()
+    except (OSError, ValueError) as e:
+        return False, Path(), f"Invalid path: {path}"
+    
+    # Check for path traversal
+    normalized = os.path.normpath(path)
+    if ".." in normalized.split(os.sep):
+        return False, p, "Path traversal detected"
+    
+    # Only allow paths that exist
+    if not p.exists():
+        return False, p, f"Path does not exist: {path}"
+    
+    return True, p, None
 
 
 def get_disk_usage(path: str = "/") -> Dict:
@@ -23,8 +70,18 @@ def get_disk_usage(path: str = "/") -> Dict:
     Returns:
         Dict with disk usage info
     """
+    # Rate limiting
+    allowed, error = check_rate_limit()
+    if not allowed:
+        return {"error": error}
+    
+    # Validate path
+    is_valid, safe_path, error = get_safe_path(path)
+    if not is_valid:
+        return {"error": error}
+    
     try:
-        usage = shutil.disk_usage(path)
+        usage = shutil.disk_usage(str(safe_path))
         
         total_gb = usage.total / (1024**3)
         used_gb = usage.used / (1024**3)
@@ -38,7 +95,7 @@ def get_disk_usage(path: str = "/") -> Dict:
             status = "warning"
         
         return {
-            "path": path,
+            "path": path,  # Return original path, not resolved path
             "total_gb": round(total_gb, 2),
             "used_gb": round(used_gb, 2),
             "free_gb": round(free_gb, 2),
@@ -56,6 +113,11 @@ def get_memory_info() -> Dict:
     Returns:
         Dict with memory info
     """
+    # Rate limiting
+    allowed, error = check_rate_limit()
+    if not allowed:
+        return {"error": error}
+    
     try:
         import psutil
         
@@ -85,6 +147,11 @@ def get_cpu_info() -> Dict:
     Returns:
         Dict with CPU info
     """
+    # Rate limiting
+    allowed, error = check_rate_limit()
+    if not allowed:
+        return {"error": error}
+    
     try:
         import psutil
         
@@ -111,6 +178,11 @@ def get_system_info() -> Dict:
     Returns:
         Dict with system info
     """
+    # Rate limiting
+    allowed, error = check_rate_limit()
+    if not allowed:
+        return {"error": error}
+    
     return {
         "platform": platform.platform(),
         "system": platform.system(),
@@ -135,24 +207,73 @@ def get_large_files(directory: str = "~", n: int = 10, min_size_mb: int = 100) -
     Returns:
         List of large files
     """
+    # Rate limiting
+    allowed, error = check_rate_limit()
+    if not allowed:
+        return [{"error": error}]
+    
+    # Validate and sanitize directory
     try:
-        dir_path = Path(directory).expanduser()
-        large_files = []
-        
+        dir_path = Path(directory).expanduser().resolve()
+    except (OSError, ValueError) as e:
+        return [{"error": f"Invalid directory: {directory}"}]
+    
+    # Check for path traversal
+    normalized = os.path.normpath(directory)
+    if ".." in normalized.split(os.sep):
+        return [{"error": "Path traversal detected"}]
+    
+    # Limit search to home directory and common data directories
+    home = Path.home().resolve()
+    allowed_roots = [
+        str(home),
+        "/tmp",
+        "/var/tmp",
+        "/home"
+    ]
+    
+    dir_str = str(dir_path)
+    allowed = any(dir_str.startswith(root) for root in allowed_roots)
+    if not allowed:
+        return [{"error": "Directory outside allowed search paths"}]
+    
+    if not dir_path.exists():
+        return [{"error": f"Directory does not exist: {directory}"}]
+    
+    large_files = []
+    files_checked = 0
+    max_files_to_check = 10000  # Prevent excessive scanning
+    
+    try:
         for file_path in dir_path.rglob("*"):
+            files_checked += 1
+            if files_checked > max_files_to_check:
+                break
+            
             if file_path.is_file():
-                size_mb = file_path.stat().st_size / (1024**2)
-                if size_mb >= min_size_mb:
-                    large_files.append({
-                        "path": str(file_path),
-                        "size_mb": round(size_mb, 2)
-                    })
-        
-        # Sort by size and return top N
-        large_files.sort(key=lambda x: x["size_mb"], reverse=True)
-        return large_files[:n]
+                try:
+                    size_mb = file_path.stat().st_size / (1024**2)
+                    if size_mb >= min_size_mb:
+                        # Return relative path to prevent full path disclosure
+                        try:
+                            rel_path = file_path.relative_to(home)
+                            display_path = f"~/{rel_path}"
+                        except ValueError:
+                            # Outside home, use basename only
+                            display_path = file_path.name
+                        
+                        large_files.append({
+                            "path": display_path,
+                            "size_mb": round(size_mb, 2)
+                        })
+                except (OSError, IOError, PermissionError):
+                    continue
     except Exception as e:
         return [{"error": str(e)}]
+    
+    # Sort by size and return top N
+    large_files.sort(key=lambda x: x["size_mb"], reverse=True)
+    return large_files[:min(n, 100)]  # Limit to max 100
 
 
 def check_system_health() -> Dict:
@@ -273,6 +394,10 @@ def main():
     elif command == "info":
         result = get_system_info()
         
+        if "error" in result:
+            print(f"❌ Error: {result['error']}")
+            sys.exit(1)
+        
         print("📊 System Information")
         print(f"   Platform: {result['platform']}")
         print(f"   Hostname: {result['hostname']}")
@@ -282,6 +407,10 @@ def main():
     
     elif command == "health":
         result = check_system_health()
+        
+        if "error" in result:
+            print(f"❌ Error: {result['error']}")
+            sys.exit(1)
         
         status_icon = "✅" if result["status"] == "healthy" else "⚠️" if result["status"] == "warning" else "🔴"
         print(f"{status_icon} System Health: {result['status'].upper()}")
@@ -294,7 +423,11 @@ def main():
     
     elif command == "large-files":
         directory = sys.argv[2] if len(sys.argv) > 2 else "~"
-        n = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+        try:
+            n = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+        except ValueError:
+            print("Error: n must be an integer")
+            sys.exit(1)
         
         results = get_large_files(directory, n)
         

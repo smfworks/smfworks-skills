@@ -5,8 +5,117 @@ Generate QR codes for URLs, emails, WiFi, and more.
 """
 
 import sys
+import re
 from pathlib import Path
 from typing import Dict, Optional
+from html import escape
+import urllib.parse
+
+# Maximum data length to prevent memory exhaustion
+MAX_DATA_LENGTH = 2000
+ALLOWED_OUTPUT_EXTENSIONS = {'.png', '.svg', '.jpg', '.jpeg'}
+MAX_QR_SIZE = 40  # Maximum QR code size (box_size)
+MAX_BORDER = 10   # Maximum border size
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    Sanitize a filename to prevent path traversal and injection attacks.
+    """
+    # Remove any path components
+    filename = Path(filename).name
+    
+    # Remove any non-alphanumeric characters except safe ones
+    filename = re.sub(r'[^a-zA-Z0-9._\-]', '_', filename)
+    
+    # Prevent double extensions and path traversal patterns
+    filename = filename.replace('..', '_')
+    
+    return filename
+
+
+def validate_output_path(output_file: str) -> tuple[bool, str]:
+    """
+    Validate and sanitize output file path.
+    
+    Returns:
+        (is_valid, error_or_sanitized_path)
+    """
+    try:
+        path = Path(output_file)
+    except (OSError, ValueError):
+        return False, "Invalid output path"
+    
+    # Check for path traversal
+    normalized = path.resolve()
+    
+    # Ensure extension is allowed
+    ext = path.suffix.lower()
+    if ext not in ALLOWED_OUTPUT_EXTENSIONS:
+        # Default to .png
+        path = path.with_suffix('.png')
+        ext = '.png'
+    
+    # Sanitize filename
+    safe_name = sanitize_filename(path.name)
+    if not safe_name:
+        safe_name = "qr-code.png"
+    
+    # Use the safe filename
+    path = path.parent / safe_name
+    
+    return True, str(path)
+
+
+def validate_data(data: str, data_type: str = "text") -> tuple[bool, str]:
+    """
+    Validate QR code data for security.
+    
+    Returns:
+        (is_valid, error_message)
+    """
+    if not data:
+        return False, "Data cannot be empty"
+    
+    if len(data) > MAX_DATA_LENGTH:
+        return False, f"Data too long (max {MAX_DATA_LENGTH} characters)"
+    
+    # Check for potential command injection patterns
+    dangerous_patterns = [
+        r'[`;|&$]',  # Shell metacharacters
+        r'\x00',     # Null bytes
+        r'\n',       # Newlines in data
+        r'\r',       # Carriage returns
+    ]
+    
+    for pattern in dangerous_patterns:
+        if re.search(pattern, data):
+            return False, "Data contains invalid characters"
+    
+    # Type-specific validation
+    if data_type == "url":
+        try:
+            parsed = urllib.parse.urlparse(data)
+            if parsed.scheme not in ('http', 'https', 'mailto', 'tel'):
+                return False, "Only http, https, mailto, and tel URLs are allowed"
+        except ValueError:
+            return False, "Invalid URL format"
+    
+    elif data_type == "email":
+        if '@' not in data:
+            return False, "Invalid email address"
+    
+    elif data_type == "phone":
+        # Allow only digits, +, -, spaces, and parentheses
+        if not re.match(r'^[\d\s\-+()]+$', data):
+            return False, "Phone number contains invalid characters"
+    
+    elif data_type == "wifi":
+        # SSID shouldn't have control characters
+        if any(ord(c) < 32 for c in data):
+            return False, "WiFi data contains invalid characters"
+    
+    return True, ""
 
 
 def generate_qr(data: str, output_file: str, size: int = 10, border: int = 4) -> Dict:
@@ -25,6 +134,21 @@ def generate_qr(data: str, output_file: str, size: int = 10, border: int = 4) ->
     try:
         import qrcode
         from PIL import Image
+        
+        # Validate data
+        is_valid, error = validate_data(data)
+        if not is_valid:
+            return {"success": False, "error": error}
+        
+        # Validate output path
+        is_valid, sanitized_path = validate_output_path(output_file)
+        if not is_valid:
+            return {"success": False, "error": sanitized_path}
+        output_file = sanitized_path
+        
+        # Validate size parameters
+        size = max(1, min(size, MAX_QR_SIZE))
+        border = max(0, min(border, MAX_BORDER))
         
         # Create QR code instance
         qr = qrcode.QRCode(
@@ -48,7 +172,11 @@ def generate_qr(data: str, output_file: str, size: int = 10, border: int = 4) ->
             img = qr.make_image(fill_color="black", back_color="white")
         
         # Ensure output directory exists
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+        output_path = Path(output_file)
+        try:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            return {"success": False, "error": f"Cannot create output directory: {e}"}
         
         # Save
         img.save(output_file)
@@ -56,7 +184,7 @@ def generate_qr(data: str, output_file: str, size: int = 10, border: int = 4) ->
         return {
             "success": True,
             "output": output_file,
-            "data": data,
+            "data": escape(data[:100]),  # Escape for display
             "size": f"{qr.modules_count}x{qr.modules_count}"
         }
         
@@ -79,8 +207,25 @@ def generate_wifi_qr(ssid: str, password: str, security: str = "WPA", output_fil
     Returns:
         Dict with operation results
     """
+    # Validate SSID and password
+    for field, value, name in [(ssid, "SSID", 32), (password, "password", 63)]:
+        is_valid, error = validate_data(value, "wifi")
+        if not is_valid:
+            return {"success": False, "error": f"{name}: {error}"}
+        if len(value) > name:
+            return {"success": False, "error": f"{name} too long (max {name} characters)"}
+    
+    # Validate security type
+    valid_security = {"WPA", "WEP", "nopass"}
+    if security not in valid_security:
+        return {"success": False, "error": f"Security must be one of: {', '.join(valid_security)}"}
+    
+    # Escape SSID and password for WiFi format
     # WiFi QR format: WIFI:T:security;S:ssid;P:password;;
-    wifi_data = f"WIFI:T:{security};S:{ssid};P:{password};;"
+    escaped_ssid = ssid.replace(';', '\\;').replace(':', '\\:')
+    escaped_password = password.replace(';', '\\;').replace(':', '\\:')
+    
+    wifi_data = f"WIFI:T:{security};S:{escaped_ssid};P:{escaped_password};;"
     
     return generate_qr(wifi_data, output_file)
 
@@ -98,9 +243,18 @@ def generate_email_qr(email: str, subject: str = "", body: str = "", output_file
     Returns:
         Dict with operation results
     """
-    # Email QR format: mailto:email?subject=...&body=...
-    import urllib.parse
+    # Validate email
+    is_valid, error = validate_data(email, "email")
+    if not is_valid:
+        return {"success": False, "error": error}
     
+    # Validate subject and body lengths
+    if len(subject) > 500:
+        return {"success": False, "error": "Subject too long (max 500 characters)"}
+    if len(body) > 1500:
+        return {"success": False, "error": "Body too long (max 1500 characters)"}
+    
+    # Email QR format: mailto:email?subject=...&body=...
     params = {}
     if subject:
         params["subject"] = subject
@@ -127,6 +281,11 @@ def generate_phone_qr(phone: str, output_file: str = "phone.png") -> Dict:
     Returns:
         Dict with operation results
     """
+    # Validate phone
+    is_valid, error = validate_data(phone, "phone")
+    if not is_valid:
+        return {"success": False, "error": error}
+    
     # Phone QR format: tel:number
     phone_data = f"tel:{phone}"
     
@@ -146,16 +305,32 @@ def generate_vcard_qr(name: str, phone: str, email: str = "", output_file: str =
     Returns:
         Dict with operation results
     """
-    # vCard format
+    # Validate inputs
+    if not name or len(name) > 100:
+        return {"success": False, "error": "Name required (max 100 characters)"}
+    
+    is_valid, error = validate_data(phone, "phone")
+    if not is_valid:
+        return {"success": False, "error": error}
+    
+    if email:
+        is_valid, error = validate_data(email, "email")
+        if not is_valid:
+            return {"success": False, "error": error}
+    
+    # vCard format with proper escaping
+    def escape_vcard(value: str) -> str:
+        return value.replace('\\', '\\\\').replace(';', '\\;').replace(',', '\\,').replace('\n', '\\n')
+    
     vcard_lines = [
         "BEGIN:VCARD",
         "VERSION:3.0",
-        f"FN:{name}",
-        f"TEL:{phone}"
+        f"FN:{escape_vcard(name)}",
+        f"TEL:{escape_vcard(phone)}"
     ]
     
     if email:
-        vcard_lines.append(f"EMAIL:{email}")
+        vcard_lines.append(f"EMAIL:{escape_vcard(email)}")
     
     vcard_lines.append("END:VCARD")
     
@@ -176,9 +351,16 @@ def generate_sms_qr(phone: str, message: str = "", output_file: str = "sms.png")
     Returns:
         Dict with operation results
     """
-    # SMS QR format: sms:number?body=message
-    import urllib.parse
+    # Validate phone
+    is_valid, error = validate_data(phone, "phone")
+    if not is_valid:
+        return {"success": False, "error": error}
     
+    # Validate message
+    if len(message) > 500:
+        return {"success": False, "error": "Message too long (max 500 characters)"}
+    
+    # SMS QR format: sms:number?body=message
     if message:
         encoded_message = urllib.parse.quote(message)
         sms_data = f"sms:{phone}?body={encoded_message}"

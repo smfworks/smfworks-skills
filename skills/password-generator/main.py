@@ -7,6 +7,7 @@ Generate strong passwords, passphrases, and check password strength.
 import secrets
 import string
 import sys
+import math
 from pathlib import Path
 from typing import Dict
 
@@ -157,7 +158,7 @@ def check_password_strength(password: str) -> Dict:
     if has_special:
         charset_size += 20
     
-    entropy = len(password) * (charset_size.bit_length() - 1) if charset_size > 0 else 0
+    entropy = len(password) * math.log2(charset_size) if charset_size > 0 else 0
     
     # Strength rating
     if score >= 8:

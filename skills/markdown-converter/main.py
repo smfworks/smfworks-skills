@@ -5,8 +5,21 @@ Convert Markdown to HTML and other formats.
 """
 
 import sys
+import re
+import html as html_module
 from pathlib import Path
 from typing import Dict
+
+
+def validate_path(input_file: str) -> Path:
+    """Validate and resolve path to prevent directory traversal."""
+    allowed_root = Path.cwd().resolve()
+    resolved = Path(input_file).resolve()
+    try:
+        resolved.relative_to(allowed_root)
+        return resolved
+    except ValueError:
+        raise ValueError(f"Path outside allowed directory: {input_file}")
 
 
 def markdown_to_html(input_file: str, output_file: str = None) -> Dict:
@@ -23,8 +36,11 @@ def markdown_to_html(input_file: str, output_file: str = None) -> Dict:
     try:
         import markdown
         
+        # Validate path
+        input_path = validate_path(input_file)
+        
         # Read markdown
-        with open(input_file, 'r', encoding='utf-8') as f:
+        with open(input_path, 'r', encoding='utf-8') as f:
             md_content = f.read()
         
         # Convert to HTML
@@ -33,12 +49,15 @@ def markdown_to_html(input_file: str, output_file: str = None) -> Dict:
             extensions=['tables', 'fenced_code', 'toc']
         )
         
+        # Escape title for HTML safety
+        title = html_module.escape(Path(input_file).stem)
+        
         # Wrap in basic HTML template
         html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>{Path(input_file).stem}</title>
+    <title>{title}</title>
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; }}
         code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }}
@@ -56,24 +75,33 @@ def markdown_to_html(input_file: str, output_file: str = None) -> Dict:
         
         # Determine output file
         if output_file is None:
-            output_file = str(Path(input_file).with_suffix('.html'))
+            output_path = input_path.with_suffix('.html')
+        else:
+            output_path = Path(output_file)
         
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+        # Ensure parent directory exists
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html)
         
         return {
             "success": True,
-            "input": input_file,
-            "output": output_file,
+            "input": str(input_path),
+            "output": str(output_path),
             "characters": len(md_content)
         }
         
     except ImportError:
         return {"success": False, "error": "markdown not installed. Run: pip install markdown"}
+    except FileNotFoundError:
+        return {"success": False, "error": f"Input file not found: {input_file}"}
+    except PermissionError:
+        return {"success": False, "error": f"Permission denied: {input_file}"}
+    except OSError as e:
+        return {"success": False, "error": f"File error: {e}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"Unexpected error: {type(e).__name__}: {e}"}
 
 
 def markdown_to_text(input_file: str, output_file: str = None) -> Dict:
@@ -88,40 +116,59 @@ def markdown_to_text(input_file: str, output_file: str = None) -> Dict:
         Dict with operation results
     """
     try:
-        import re
+        # Validate path
+        input_path = validate_path(input_file)
         
         # Read markdown
-        with open(input_file, 'r', encoding='utf-8') as f:
+        with open(input_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Remove markdown syntax
-        text = content
-        text = re.sub(r'#+\s*', '', text)  # Headers
-        text = re.sub(r'\*\*|__', '', text)  # Bold
-        text = re.sub(r'\*|_', '', text)  # Italic
-        text = re.sub(r'`', '', text)  # Code
-        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # Links
-        text = re.sub(r'!\[([^\]]*)\]\([^\)]+\)', r'[Image: \1]', text)  # Images
-        text = re.sub(r'\n{3,}', '\n\n', text)  # Extra newlines
+        # Convert to HTML first, then strip tags for cleaner text
+        try:
+            import markdown
+            html_content = markdown.markdown(
+                content,
+                extensions=['tables', 'fenced_code']
+            )
+            # Strip HTML tags
+            text = re.sub(r'<[^>]+>', '', html_content)
+        except ImportError:
+            # Fallback to regex-based stripping
+            text = content
+            text = re.sub(r'#+\s*', '', text)  # Headers
+            text = re.sub(r'\*\*|__', '', text)  # Bold
+            text = re.sub(r'\*|_', '', text)  # Italic
+            text = re.sub(r'`', '', text)  # Code
+            text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # Links
+            text = re.sub(r'!\[([^\]]*)\]\([^\)]+\)', r'[Image: \1]', text)  # Images
+            text = re.sub(r'\n{3,}', '\n\n', text)  # Extra newlines
         
         # Determine output file
         if output_file is None:
-            output_file = str(Path(input_file).with_suffix('.txt'))
+            output_path = input_path.with_suffix('.txt')
+        else:
+            output_path = Path(output_file)
         
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(text)
         
         return {
             "success": True,
-            "input": input_file,
-            "output": output_file,
+            "input": str(input_path),
+            "output": str(output_path),
             "characters": len(text)
         }
         
+    except FileNotFoundError:
+        return {"success": False, "error": f"Input file not found: {input_file}"}
+    except PermissionError:
+        return {"success": False, "error": f"Permission denied: {input_file}"}
+    except OSError as e:
+        return {"success": False, "error": f"File error: {e}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"Unexpected error: {type(e).__name__}: {e}"}
 
 
 def extract_toc(input_file: str) -> Dict:
@@ -135,9 +182,10 @@ def extract_toc(input_file: str) -> Dict:
         Dict with TOC
     """
     try:
-        import re
+        # Validate path
+        input_path = validate_path(input_file)
         
-        with open(input_file, 'r', encoding='utf-8') as f:
+        with open(input_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Find headers
@@ -146,7 +194,10 @@ def extract_toc(input_file: str) -> Dict:
         toc = []
         for level, title in headers:
             depth = len(level)
-            anchor = re.sub(r'[^\w\s-]', '', title.lower()).replace(' ', '-')
+            # Create GitHub-style anchor
+            anchor = re.sub(r'[^\w\s-]', '', title.lower())
+            anchor = re.sub(r'[\s]+', '-', anchor.strip())
+            anchor = anchor.strip('-')
             toc.append({
                 "depth": depth,
                 "title": title.strip(),
@@ -159,8 +210,12 @@ def extract_toc(input_file: str) -> Dict:
             "toc": toc
         }
         
+    except FileNotFoundError:
+        return {"success": False, "error": f"Input file not found: {input_file}"}
+    except PermissionError:
+        return {"success": False, "error": f"Permission denied: {input_file}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"Error: {e}"}
 
 
 def count_markdown_stats(input_file: str) -> Dict:
@@ -174,9 +229,10 @@ def count_markdown_stats(input_file: str) -> Dict:
         Dict with stats
     """
     try:
-        import re
+        # Validate path
+        input_path = validate_path(input_file)
         
-        with open(input_file, 'r', encoding='utf-8') as f:
+        with open(input_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Count various elements
@@ -184,7 +240,11 @@ def count_markdown_stats(input_file: str) -> Dict:
         lines = content.count('\n') + 1
         
         headers = len(re.findall(r'^#{1,6}\s+', content, re.MULTILINE))
-        code_blocks = len(re.findall(r'```', content)) // 2
+        
+        # Count code blocks properly (pairs of ```)
+        fence_matches = re.findall(r'^```\w*$', content, re.MULTILINE)
+        code_blocks = len(fence_matches) // 2
+        
         links = len(re.findall(r'\[([^\]]+)\]\([^\)]+\)', content))
         images = len(re.findall(r'!\[([^\]]*)\]\([^\)]+\)', content))
         
@@ -199,8 +259,12 @@ def count_markdown_stats(input_file: str) -> Dict:
             "images": images
         }
         
+    except FileNotFoundError:
+        return {"success": False, "error": f"Input file not found: {input_file}"}
+    except PermissionError:
+        return {"success": False, "error": f"Permission denied: {input_file}"}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {"success": False, "error": f"Error: {e}"}
 
 
 def main():
