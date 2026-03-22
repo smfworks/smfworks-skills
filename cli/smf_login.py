@@ -12,7 +12,7 @@ from urllib.error import HTTPError, URLError
 
 SMF_DIR = Path.home() / ".smf"
 TOKEN_PATH = SMF_DIR / "token"
-API_BASE = "https://api.smf.works"
+API_BASE = "https://smfworks.com/api"
 
 
 def ensure_smf_dir():
@@ -82,7 +82,7 @@ def login():
     
     # New token flow
     print("To get your token:")
-    print("1. Visit: https://smf.works/dashboard")
+    print("1. Visit: https://smfworks.com/dashboard")
     print("2. Sign in with your account")
     print("3. Copy your API token")
     print("")
