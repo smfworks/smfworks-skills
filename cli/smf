@@ -3,7 +3,7 @@
 SMF CLI - Unified command-line interface for SMF Works Skills
 
 Usage:
-    smfw install <skill>          # Install a skill (preferred)
+    smfw install <skill>          # Install a skill
     smfw uninstall <skill>       # Uninstall a skill
     smfw run <skill> [args]       # Run a skill
     smfw list                      # List installed skills
@@ -12,8 +12,6 @@ Usage:
     smfw logout                    # Remove authentication
     smfw status                    # Show subscription status
     smfw update                    # Update all skills
-
-Note: 'smf' command is deprecated. Use 'smfw' to avoid conflicts with ClawHub CLI.
 """
 
 import sys
@@ -23,28 +21,6 @@ import subprocess
 from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
-
-# Check if called as 'smf' instead of 'smfw'
-CLI_NAME = Path(__file__).name
-if CLI_NAME == "smf":
-    # Check if ClawHub is also installed
-    clawhub_path = subprocess.run(
-        ["which", "clawhub"],
-        capture_output=True,
-        text=True
-    ).stdout.strip()
-    
-    if clawhub_path:
-        print("⚠️  DEPRECATION WARNING: 'smf' command conflicts with ClawHub CLI.")
-        print("   Please use 'smfw' instead for reliable operation.")
-        print("   Install: curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash")
-        print("")
-    else:
-        # Only show deprecation if not already using smfw
-        smfw_path = Path.home() / ".local" / "bin" / "smfw"
-        if smfw_path.exists():
-            print("ℹ️  Tip: 'smfw' is available. Consider using it instead of 'smf'.")
-            print("")
 
 # Configuration
 SMF_DIR = Path.home() / ".smf"
