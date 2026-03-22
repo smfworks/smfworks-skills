@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """
 SMF CLI - Unified command-line interface for SMF Works Skills
+
 Usage:
-    smf install <skill>          # Install a skill
-    smf uninstall <skill>       # Uninstall a skill
-    smf run <skill> [args]       # Run a skill
-    smf list                      # List installed skills
-    smf search [query]            # Search available skills
-    smf login                     # Authenticate for Pro skills
-    smf logout                    # Remove authentication
-    smf status                    # Show subscription status
-    smf update                    # Update all skills
+    smfw install <skill>          # Install a skill (preferred)
+    smfw uninstall <skill>       # Uninstall a skill
+    smfw run <skill> [args]       # Run a skill
+    smfw list                      # List installed skills
+    smfw search [query]            # Search available skills
+    smfw login                     # Authenticate for Pro skills
+    smfw logout                    # Remove authentication
+    smfw status                    # Show subscription status
+    smfw update                    # Update all skills
+
+Note: 'smf' command is deprecated. Use 'smfw' to avoid conflicts with ClawHub CLI.
 """
 
 import sys
@@ -20,6 +23,28 @@ import subprocess
 from pathlib import Path
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
+
+# Check if called as 'smf' instead of 'smfw'
+CLI_NAME = Path(__file__).name
+if CLI_NAME == "smf":
+    # Check if ClawHub is also installed
+    clawhub_path = subprocess.run(
+        ["which", "clawhub"],
+        capture_output=True,
+        text=True
+    ).stdout.strip()
+    
+    if clawhub_path:
+        print("⚠️  DEPRECATION WARNING: 'smf' command conflicts with ClawHub CLI.")
+        print("   Please use 'smfw' instead for reliable operation.")
+        print("   Install: curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash")
+        print("")
+    else:
+        # Only show deprecation if not already using smfw
+        smfw_path = Path.home() / ".local" / "bin" / "smfw"
+        if smfw_path.exists():
+            print("ℹ️  Tip: 'smfw' is available. Consider using it instead of 'smf'.")
+            print("")
 
 # Configuration
 SMF_DIR = Path.home() / ".smf"
@@ -59,7 +84,7 @@ def install_skill(skill_name):
     # Check if skill exists
     if not is_skill_available(skill_name):
         print(f"❌ Skill '{skill_name}' not found in repository.")
-        print(f"   Run 'smf search' to see available skills.")
+        print(f"   Run 'smfw search' to see available skills.")
         return False
     
     skill_dir = SKILLS_DIR / skill_name
@@ -94,7 +119,7 @@ python3 "{skill_dir}/main.py" "$@"
     wrapper.chmod(0o755)
     
     print(f"✅ {skill_name} installed successfully!")
-    print(f"   Run: smf run {skill_name} --help")
+    print(f"   Run: smfw run {skill_name} --help")
     return True
 
 def uninstall_skill(skill_name):
@@ -126,7 +151,7 @@ def run_skill(skill_name, args):
     
     if not main_file.exists():
         print(f"❌ {skill_name} is not installed.")
-        print(f"   Install with: smf install {skill_name}")
+        print(f"   Install with: smfw install {skill_name}")
         return 1
     
     # Run the skill
@@ -139,7 +164,7 @@ def list_skills():
     
     if not installed:
         print("No skills installed.")
-        print("Run 'smf install <skill>' to install one.")
+        print("Run 'smfw install <skill>' to install one.")
         return
     
     print("📦 Installed Skills:")
@@ -186,7 +211,7 @@ def search_skills(query=None):
     
     print("")
     print("Install a skill:")
-    print("  smf install <skill-name>")
+    print("  smfw install <skill-name>")
 
 def login():
     """Authenticate for Pro skills."""
@@ -226,7 +251,7 @@ def status():
     
     if not token_file.exists():
         print("❌ Not logged in")
-        print("   Run: smf login")
+        print("   Run: smfw login")
         return
     
     print("🔐 SMF Works Status")
@@ -275,25 +300,26 @@ def update_skills():
 
 def show_help():
     """Show help message."""
-    print("""SMF Works Skills CLI
+    cli = CLI_NAME if 'CLI_NAME' in globals() else 'smfw'
+    print(f"""SMF Works Skills CLI
 
 Usage:
-  smf install <skill>       Install a skill
-  smf uninstall <skill>    Uninstall a skill
-  smf run <skill> [args]   Run a skill
-  smf list                 List installed skills
-  smf search               Search available skills
-  smf login                Authenticate for Pro skills
-  smf logout               Remove authentication
-  smf status               Show subscription status
-  smf update               Update all skills
-  smf help                 Show this help
+  {cli} install <skill>       Install a skill
+  {cli} uninstall <skill>    Uninstall a skill
+  {cli} run <skill> [args]   Run a skill
+  {cli} list                 List installed skills
+  {cli} search               Search available skills
+  {cli} login                Authenticate for Pro skills
+  {cli} logout               Remove authentication
+  {cli} status               Show subscription status
+  {cli} update               Update all skills
+  {cli} help                 Show this help
 
 Examples:
-  smf install file-organizer
-  smf run file-organizer organize-date ~/Downloads
-  smf search
-  smf login
+  {cli} install file-organizer
+  {cli} run file-organizer organize-date ~/Downloads
+  {cli} search
+  {cli} login
 
 Free Skills (no subscription):
   file-organizer, pdf-toolkit, text-formatter, qr-generator,
@@ -315,10 +341,11 @@ def main():
     command = sys.argv[1]
     args = sys.argv[2:]
     
+    cli = CLI_NAME if 'CLI_NAME' in globals() else 'smfw'
     commands = {
-        'install': lambda: install_skill(args[0]) if args else (print("Usage: smf install <skill>"), False),
-        'uninstall': lambda: uninstall_skill(args[0]) if args else (print("Usage: smf uninstall <skill>"), False),
-        'run': lambda: run_skill(args[0], args[1:]) if args else (print("Usage: smf run <skill> [args]"), 1),
+        'install': lambda: install_skill(args[0]) if args else (print(f"Usage: {cli} install <skill>"), False),
+        'uninstall': lambda: uninstall_skill(args[0]) if args else (print(f"Usage: {cli} uninstall <skill>"), False),
+        'run': lambda: run_skill(args[0], args[1:]) if args else (print(f"Usage: {cli} run <skill> [args]"), 1),
         'list': list_skills,
         'search': lambda: search_skills(args[0] if args else None),
         'login': login,
