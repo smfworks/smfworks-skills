@@ -12,15 +12,16 @@ A curated collection of productivity skills for OpenClaw — from everyday utili
 # Install SMF CLI (one-time setup)
 curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
 
-# Install any skill (use 'smfw' to avoid conflicts with ClawHub)
-smfw install file-organizer        # Free
-smfw install lead-capture          # Pro (requires subscription)
+# Install skills via OpenClaw TUI (Recommended)
+# After installing the CLI above, use the OpenClaw TUI to install skills:
+#   smfw install file-organizer        # Free
+#   smfw install lead-capture          # Pro (requires subscription)
 
 # Run it
 smfw run file-organizer organize-date ~/Downloads
 ```
 
-**Note:** Use `smfw` (not `smf`) to avoid conflicts with ClawHub CLI. Both work, but `smfw` is preferred.
+**💡 Tip:** After installing the SMF CLI, launch the OpenClaw TUI and use the skill manager to browse and install skills interactively.
 
 ---
 
