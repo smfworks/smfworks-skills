@@ -12,13 +12,15 @@ A curated collection of productivity skills for OpenClaw — from everyday utili
 # Install SMF CLI (one-time setup)
 curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
 
-# Install any skill
-smf install file-organizer        # Free
-smf install lead-capture          # Pro (requires subscription)
+# Install any skill (use 'smfw' to avoid conflicts with ClawHub)
+smfw install file-organizer        # Free
+smfw install lead-capture          # Pro (requires subscription)
 
 # Run it
-smf run file-organizer organize-date ~/Downloads
+smfw run file-organizer organize-date ~/Downloads
 ```
+
+**Note:** Use `smfw` (not `smf`) to avoid conflicts with ClawHub CLI. Both work, but `smfw` is preferred.
 
 ---
 
@@ -28,18 +30,18 @@ No subscription required. No auth needed. Just works.
 
 | # | Skill | Description | Install |
 |---|-------|-------------|---------|
-| 1 | **File Organizer** | Organize files by date, type, find duplicates | `smf install file-organizer` |
-| 2 | **PDF Toolkit** | Merge, split, extract, compress, rotate PDFs | `smf install pdf-toolkit` |
-| 3 | **Text Formatter** | Case conversion, word count, clean whitespace | `smf install text-formatter` |
-| 4 | **QR Generator** | Generate QR codes for URLs, WiFi, vCard, email | `smf install qr-generator` |
-| 5 | **System Monitor** | Monitor disk, memory, CPU, find large files | `smf install system-monitor` |
-| 6 | **Website Checker** | Check site status, SSL certificates, response time | `smf install website-checker` |
-| 7 | **CSV Converter** | Convert between CSV, JSON, Excel formats | `smf install csv-converter` |
-| 8 | **Image Resizer** | Resize, compress, convert, batch process images | `smf install image-resizer` |
-| 9 | **Password Generator** | Strong passwords, passphrases, strength check | `smf install password-generator` |
-| 10 | **Markdown Converter** | Convert Markdown to HTML, text, extract TOC | `smf install markdown-converter` |
-| 11 | **Daily News Digest** | Curated news delivered daily to your interests | `smf install daily-news-digest` |
-| 12 | **Skill Manager** | Visual tool for managing installed OpenClaw skills | `smf install skill-manager` |
+| 1 | **File Organizer** | Organize files by date, type, find duplicates | `smfw install file-organizer` |
+| 2 | **PDF Toolkit** | Merge, split, extract, compress, rotate PDFs | `smfw install pdf-toolkit` |
+| 3 | **Text Formatter** | Case conversion, word count, clean whitespace | `smfw install text-formatter` |
+| 4 | **QR Generator** | Generate QR codes for URLs, WiFi, vCard, email | `smfw install qr-generator` |
+| 5 | **System Monitor** | Monitor disk, memory, CPU, find large files | `smfw install system-monitor` |
+| 6 | **Website Checker** | Check site status, SSL certificates, response time | `smfw install website-checker` |
+| 7 | **CSV Converter** | Convert between CSV, JSON, Excel formats | `smfw install csv-converter` |
+| 8 | **Image Resizer** | Resize, compress, convert, batch process images | `smfw install image-resizer` |
+| 9 | **Password Generator** | Strong passwords, passphrases, strength check | `smfw install password-generator` |
+| 10 | **Markdown Converter** | Convert Markdown to HTML, text, extract TOC | `smfw install markdown-converter` |
+| 11 | **Daily News Digest** | Curated news delivered daily to your interests | `smfw install daily-news-digest` |
+| 12 | **Skill Manager** | Visual tool for managing installed OpenClaw skills | `smfw install skill-manager` |
 
 ---
 
@@ -49,20 +51,20 @@ Premium skills for business automation. Requires SMF Works subscription ($19.99/
 
 | # | Skill | Description | Install |
 |---|-------|-------------|---------|
-| 13 | **Lead Capture** | Capture, qualify, and manage sales leads | `smf install lead-capture` |
-| 14 | **Coffee Briefing** | Your personal morning briefing with weather and priorities | `smf install coffee-briefing` |
-| 15 | **Morning Commute** | Your daily commute briefing with traffic, transit, and weather | `smf install morning-commute` |
-| 16 | **OpenClaw Backup** | Daily backup of your OpenClaw agent with 2-day rolling retention | `smf install openclaw-backup` |
-| 17 | **Claw System Backup** | Weekly full Linux system backup with compression and verification | `smf install claw-system-backup` |
-| 18 | **Database Backup** | Backup SQLite, PostgreSQL, MySQL with compression | `smf install database-backup` |
-| 19 | **Report Generator** | Create business reports from CSV/JSON data | `smf install report-generator` |
-| 20 | **Email Campaign** | Create and send email campaigns with tracking | `smf install email-campaign` |
-| 21 | **Task Manager** | Kanban project management with deadlines | `smf install task-manager` |
-| 22 | **Self-Improvement** | Log errors and learnings for continuous improvement | `smf install self-improvement` |
-| 23 | **Invoice Generator** | Create professional invoices, track payments | `smf install invoice-generator` |
-| 24 | **Form Builder** | Create forms, collect responses, export data | `smf install form-builder` |
-| 25 | **Booking Engine** | Appointment scheduling with availability management | `smf install booking-engine` |
-| 26 | **OpenClaw Optimizer** | Audit workspace for cost and performance optimization | `smf install openclaw-optimizer` |
+| 13 | **Lead Capture** | Capture, qualify, and manage sales leads | `smfw install lead-capture` |
+| 14 | **Coffee Briefing** | Your personal morning briefing with weather and priorities | `smfw install coffee-briefing` |
+| 15 | **Morning Commute** | Your daily commute briefing with traffic, transit, and weather | `smfw install morning-commute` |
+| 16 | **OpenClaw Backup** | Daily backup of your OpenClaw agent with 2-day rolling retention | `smfw install openclaw-backup` |
+| 17 | **Claw System Backup** | Weekly full Linux system backup with compression and verification | `smfw install claw-system-backup` |
+| 18 | **Database Backup** | Backup SQLite, PostgreSQL, MySQL with compression | `smfw install database-backup` |
+| 19 | **Report Generator** | Create business reports from CSV/JSON data | `smfw install report-generator` |
+| 20 | **Email Campaign** | Create and send email campaigns with tracking | `smfw install email-campaign` |
+| 21 | **Task Manager** | Kanban project management with deadlines | `smfw install task-manager` |
+| 22 | **Self-Improvement** | Log errors and learnings for continuous improvement | `smfw install self-improvement` |
+| 23 | **Invoice Generator** | Create professional invoices, track payments | `smfw install invoice-generator` |
+| 24 | **Form Builder** | Create forms, collect responses, export data | `smfw install form-builder` |
+| 25 | **Booking Engine** | Appointment scheduling with availability management | `smfw install booking-engine` |
+| 26 | **OpenClaw Optimizer** | Audit workspace for cost and performance optimization | `smfw install openclaw-optimizer` |
 
 ---
 
@@ -264,7 +266,7 @@ smf run form-builder export FORM-ABC --format csv
 ### Authentication Flow
 1. User subscribes at https://smf.works/subscribe
 2. JWT token issued via Stripe webhook
-3. User runs `smf login` → token saved to `~/.smf/token`
+3. User runs `smfw login` → token saved to `~/.smf/token`
 4. Pro skills validate token locally (RS256)
 5. Token expires → renewal required
 
