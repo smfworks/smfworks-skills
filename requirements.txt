@@ -1,0 +1,36 @@
+# SMF Works Skills - Dependencies
+
+## Core Authentication (Required for Pro skills)
+PyJWT>=2.8.0
+cryptography>=42.0.0
+
+## Optional Dependencies (installed by individual skills as needed)
+
+### PDF Processing
+# PyPDF2>=3.0.0 - Required by pdf-toolkit
+
+### Image Processing
+# Pillow>=10.0.0 - Required by image-resizer
+
+### Data Analysis
+# pandas>=2.0.0 - Required by report-generator, csv-converter
+# openpyxl>=3.1.0 - Required by csv-converter (Excel support)
+
+### Network/Web
+# requests>=2.31.0 - Required by website-checker, daily-news-digest
+
+### QR Codes
+# qrcode>=7.4.0 - Required by qr-generator
+
+### Database
+# psycopg2-binary>=2.9.0 - Required by database-backup (PostgreSQL)
+# mysql-connector-python>=8.3.0 - Required by database-backup (MySQL)
+
+### Scheduling
+# schedule>=1.2.0 - Optional for scheduled skills
+
+## Development/Testing
+# pytest>=8.0.0 - For running test suite
+# pytest-cov>=4.1.0 - Coverage reporting
+# bandit>=1.7.0 - Security linting
+# safety>=3.0.0 - Dependency vulnerability scanning

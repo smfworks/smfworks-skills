@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
 SMF Auth - Shared Authentication Library for SMF Works Skills
-Handles JWT token validation for Pro skills.
+Handles JWT token validation for Pro skills with proper RS256 signature verification.
 """
 
 import os
 import sys
 import json
-import base64
-import hashlib
+import jwt
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
 
 # Public key for JWT verification (RS256)
 # This is embedded so skills work offline after token issuance
@@ -27,6 +28,15 @@ IDAQAB
 TOKEN_PATH = Path.home() / ".smf" / "token"
 REVOKE_LIST_URL = "https://api.smf.works/revocation-list"
 
+# Try to load public key at module load time
+try:
+    PUBLIC_KEY = serialization.load_pem_public_key(
+        SMF_PUBLIC_KEY.encode(),
+        backend=default_backend()
+    )
+except Exception:
+    PUBLIC_KEY = None
+
 
 def load_token() -> Optional[str]:
     """Load JWT token from ~/.smf/token"""
@@ -35,43 +45,67 @@ def load_token() -> Optional[str]:
     return None
 
 
-def decode_jwt_without_verification(token: str) -> Dict:
-    """Decode JWT payload without signature verification."""
-    try:
-        parts = token.split('.')
-        if len(parts) != 3:
-            return {"error": "Invalid JWT format"}
-        
-        # Add padding if needed
-        payload_b64 = parts[1]
-        padding = 4 - len(payload_b64) % 4
-        if padding != 4:
-            payload_b64 += '=' * padding
-        
-        payload_json = base64.urlsafe_b64decode(payload_b64)
-        return json.loads(payload_json)
-    except Exception as e:
-        return {"error": f"Failed to decode token: {str(e)}"}
-
-
-def is_token_revoked(subscriber_id: str, revoked_ids: list = None) -> bool:
-    """Check if subscriber ID is in revocation list."""
-    # For offline mode, use cached revocation list
+def load_revocation_list() -> list:
+    """Load cached revocation list."""
     revoke_cache = Path.home() / ".smf" / "revoke_cache.json"
-    
-    if revoked_ids is not None:
-        return subscriber_id in revoked_ids
     
     if revoke_cache.exists():
         try:
             data = json.loads(revoke_cache.read_text())
-            revoked = data.get("revoked", [])
-            return subscriber_id in revoked
-        except:
+            return data.get("revoked", [])
+        except (json.JSONDecodeError, IOError):
             pass
     
-    # If no cache and can't check online, allow (fail open for UX)
-    return False
+    return []
+
+
+def is_token_revoked(subscriber_id: str) -> bool:
+    """Check if subscriber ID is in revocation list."""
+    revoked_ids = load_revocation_list()
+    return subscriber_id in revoked_ids
+
+
+def verify_jwt(token: str) -> Dict:
+    """
+    Verify JWT token signature and decode payload.
+    
+    Args:
+        token: JWT token string
+    
+    Returns:
+        Dict with payload if valid, or error details if invalid
+    """
+    if PUBLIC_KEY is None:
+        return {"error": "Public key failed to load", "valid": False}
+    
+    try:
+        # Verify signature and decode
+        payload = jwt.decode(
+            token,
+            PUBLIC_KEY,
+            algorithms=["RS256"],
+            options={
+                "require": ["exp", "sub", "tier"],  # Required claims
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_iat": True,
+            }
+        )
+        
+        return {"valid": True, "payload": payload}
+        
+    except jwt.ExpiredSignatureError:
+        return {"valid": False, "error": "Token has expired"}
+    except jwt.InvalidSignatureError:
+        return {"valid": False, "error": "Invalid token signature - token may be forged"}
+    except jwt.DecodeError:
+        return {"valid": False, "error": "Token decode failed - invalid format"}
+    except jwt.MissingRequiredClaimError as e:
+        return {"valid": False, "error": f"Missing required claim: {e}"}
+    except jwt.InvalidTokenError:
+        return {"valid": False, "error": "Invalid token"}
+    except Exception as e:
+        return {"valid": False, "error": f"Token verification failed: {str(e)}"}
 
 
 def require_subscription(skill_name: str, min_tier: str = "pro") -> Dict:
@@ -94,26 +128,17 @@ def require_subscription(skill_name: str, min_tier: str = "pro") -> Dict:
             "action": "Run: smf login"
         }
     
-    # Decode token
-    payload = decode_jwt_without_verification(token)
+    # Verify JWT signature and decode
+    result = verify_jwt(token)
     
-    if "error" in payload:
+    if not result.get("valid"):
         return {
             "valid": False,
-            "error": payload["error"],
+            "error": result.get("error", "Token validation failed"),
             "action": "Run: smf login"
         }
     
-    # Check expiration
-    exp = payload.get("exp")
-    if exp:
-        now = datetime.now(timezone.utc).timestamp()
-        if now > exp:
-            return {
-                "valid": False,
-                "error": "Subscription expired",
-                "action": "Visit: https://smf.works/subscribe"
-            }
+    payload = result["payload"]
     
     # Check revocation
     subscriber_id = payload.get("sub")
@@ -126,7 +151,9 @@ def require_subscription(skill_name: str, min_tier: str = "pro") -> Dict:
     
     # Check tier
     tier = payload.get("tier", "free")
-    if tier == "free" and min_tier != "free":
+    tier_levels = {"free": 0, "pro": 1, "enterprise": 2}
+    
+    if tier_levels.get(tier, 0) < tier_levels.get(min_tier, 1):
         return {
             "valid": False,
             "error": f"This skill requires {min_tier} tier",
@@ -165,3 +192,15 @@ def show_subscription_error(result: Dict):
 
 # Backward compatibility alias
 check_subscription = require_subscription
+
+
+# Legacy function - kept for compatibility but NOT USED by secure code
+def decode_jwt_without_verification(token: str) -> Dict:
+    """
+    DEPRECATED: This function does NOT verify signatures.
+    Use verify_jwt() instead for secure token validation.
+    """
+    raise RuntimeError(
+        "decode_jwt_without_verification is deprecated and insecure. "
+        "Use verify_jwt() for proper signature verification."
+    )
