@@ -187,6 +187,64 @@ A: The skill checks traffic conditions for your configured departure time. Check
 
 ---
 
+## Detailed Output Breakdown
+
+### Route Summary
+Shows your configured origin and destination addresses, and the total distance. This confirms you're checking the right route before acting on the data.
+
+### Driving Section
+- **Typical time:** What Google Maps estimates without traffic
+- **Current time:** Real-time estimate with current traffic conditions
+- **Estimated arrival:** When you'll arrive if you leave now
+- **Recommendation:** If current time significantly exceeds typical, you'll see a recommendation to leave now or wait
+
+### Transit Section
+Shows the next departure time and estimated arrival for public transit on your route. Only appears if transit data is available for your location.
+
+---
+
+## Automation
+
+### Daily morning briefing via cron
+
+```bash
+# Open crontab
+crontab -e
+
+# Add this line (weekdays at 7 AM):
+0 7 * * 1-5 python3 /home/yourname/smfworks-skills/skills/morning-commute/main.py > /home/yourname/commute-today.txt 2>&1
+```
+
+Read it when you wake up:
+```bash
+cat ~/commute-today.txt
+```
+
+### Add to terminal startup
+
+Add to `~/.bashrc` or `~/.zshrc` to see your commute briefing every time you open a terminal:
+
+```bash
+python3 ~/smfworks-skills/skills/morning-commute/main.py
+```
+
+---
+
+## Understanding Google Maps Costs
+
+The Google Maps Directions API costs $0.005 per request. Google provides a $200/month free credit.
+
+Daily usage estimate:
+| Usage | Requests/day | Monthly cost | Within free tier? |
+|-------|-------------|--------------|-------------------|
+| 1 check/day | 2 | ~$0.30 | ✅ Yes |
+| 3 checks/day | 6 | ~$0.90 | ✅ Yes |
+| 10 checks/day | 20 | ~$3.00 | ✅ Yes |
+
+For normal personal use, you will never exceed the free tier.
+
+---
+
 ## Support
 
 - 📖 [Documentation](https://smfworks.com/skills/morning-commute)
