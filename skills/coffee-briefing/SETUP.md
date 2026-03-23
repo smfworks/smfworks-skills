@@ -38,7 +38,7 @@ Expected: Your email and `Pro` tier shown.
 2. Click "Subscribe" under "Current Weather Data" (free tier)
 3. Create an account or log in
 4. Go to your [API keys page](https://home.openweathermap.org/api_keys)
-5. Copy the default API key — it looks like: `a1b2c3d4e5f67890a1b2c3d4e5f67890`
+5. Copy the default API key — it looks like: `YOUR_OWM_API_KEY_HERE`
 
 **Note:** New API keys take up to 2 hours to activate. If you get a 401 error after setup, wait and try again.
 
@@ -151,6 +151,121 @@ Location: `~/.config/smf/skills/coffee-briefing/config.json`
 **Google Calendar OAuth errors** — Ensure your credentials JSON is valid and the Calendar API is enabled in your Google Cloud project.
 
 **`Error: credentials.json not found`** — The path in config doesn't point to a valid file. Re-run `--configure` with the correct path.
+
+---
+
+---
+
+## Configuration File Details
+
+Your configuration is saved at:
+```
+~/.config/smf/skills/coffee-briefing/config.json
+```
+
+Sample configuration:
+```json
+{
+  "openweathermap_api_key": "YOUR_OWM_API_KEY_HERE",
+  "location": "New York",
+  "temperature_unit": "imperial",
+  "google_credentials": "/home/user/google-credentials.json",
+  "news_categories": ["technology", "business"],
+  "google_calendar_token": "/home/user/.config/smf/skills/coffee-briefing/token.json"
+}
+```
+
+You can edit this file directly to update settings:
+```bash
+nano ~/.config/smf/skills/coffee-briefing/config.json
+```
+
+Or re-run `--configure` to update via the wizard.
+
+---
+
+## OpenWeatherMap API Details
+
+The free OpenWeatherMap API provides:
+
+| Feature | Free Tier |
+|---------|-----------|
+| Current weather | ✅ Yes |
+| 5-day forecast | ✅ Yes |
+| Hourly forecast | ✅ Yes |
+| Calls/minute | 60 |
+| Calls/month | 1,000,000 |
+
+One daily briefing = 1–2 API calls. You'll never approach the free tier limit.
+
+**Available temperature units:**
+- `imperial` — Fahrenheit (°F) — for US users
+- `metric` — Celsius (°C) — for international users
+- `standard` — Kelvin (K) — not recommended for daily use
+
+**Location formats:**
+- City name: `New York` or `London` or `Paris`
+- With country: `London,GB` or `Paris,FR` (more precise, avoids ambiguity)
+- ZIP code (US): `10001`
+- Coordinates: `40.7128,-74.0060`
+
+---
+
+## Google Calendar API Details
+
+The Google Calendar API is free for personal use:
+
+| Feature | Free |
+|---------|------|
+| Read calendar events | ✅ Free |
+| API calls/day | 1,000,000 |
+| OAuth setup required | ✅ Yes (one-time) |
+
+**Which calendars are included?**  
+By default, all calendars associated with the Google account you authenticated with. Primary, secondary, shared, and subscribed calendars all appear.
+
+**Google Cloud Console Steps in Detail:**
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Click "Select a project" → "New Project"
+3. Name it "Coffee Briefing" → Create
+4. In the left menu: APIs & Services → Library
+5. Search "Google Calendar API" → Click result → "Enable"
+6. APIs & Services → Credentials → "Create Credentials" → "OAuth client ID"
+7. Configure the OAuth consent screen first if prompted:
+   - User type: External
+   - App name: Coffee Briefing
+   - User support email: your email
+   - Save and continue through all steps
+8. Back to credentials: "Create Credentials" → "OAuth client ID"
+9. Application type: **Desktop app**
+10. Name: Coffee Briefing Desktop
+11. Create → Download JSON
+12. Save as `~/google-credentials.json`
+
+**First-run authorization:**
+
+The first time you run `python3 main.py`, a browser window opens (or a URL is printed for headless servers). Follow the Google OAuth flow to grant read access to your calendar. A `token.json` is saved for future runs.
+
+---
+
+## Troubleshooting Google Calendar Setup
+
+**"This app isn't verified" warning:**
+This appears because your OAuth app is not verified by Google. Click "Advanced" → "Go to Coffee Briefing (unsafe)" → Continue. This is safe for personal apps you created yourself.
+
+**`invalid_client` error:**
+Your credentials JSON is malformed. Re-download it from Google Cloud Console.
+
+**Calendar is empty despite having events:**
+Check that the authenticated Google account has events. If you have multiple Google accounts, ensure you authorized the right one.
+
+**`Token has been expired or revoked`:**
+Delete the token file and re-authenticate:
+```bash
+rm ~/.config/smf/skills/coffee-briefing/token.json
+python3 main.py
+```
 
 ---
 
