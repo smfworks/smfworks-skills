@@ -219,9 +219,79 @@ The skill requires internet to fetch news.
 
 ---
 
+## Understanding the NewsAPI Free Plan
+
+The free NewsAPI plan is designed for developers and personal projects:
+
+| Feature | Free Plan | Developer Plan ($449/mo) |
+|---------|-----------|--------------------------|
+| Requests/day | 100 | Unlimited |
+| Article history | Current + 1 month | Complete archive |
+| Full article text | ❌ No | ✅ Yes |
+| Commercial use | ❌ No | ✅ Yes |
+| Sources | All | All |
+
+For personal daily briefings, the free plan is perfect. 100 requests/day allows 3–5 categories × 5 articles × multiple daily runs.
+
+---
+
+## Available News Categories
+
+When configuring, choose from these categories:
+
+| Category | What it covers |
+|----------|---------------|
+| `business` | Business news, market updates, company announcements |
+| `technology` | Tech industry, software, hardware, science |
+| `science` | Research, space, biology, physics |
+| `health` | Medical research, public health, healthcare |
+| `sports` | Global and US sports, results, transfers |
+| `entertainment` | Movies, music, celebrity, culture |
+| `general` | Broad mix of top news across all categories |
+
+**Recommendation for most users:** Start with 2–3 categories. `technology` and `general` together give broad, quality coverage.
+
+---
+
+## Available Country Codes
+
+The `country` setting filters to news from that country. Common codes:
+
+| Country | Code |
+|---------|------|
+| United States | `us` |
+| United Kingdom | `gb` |
+| Canada | `ca` |
+| Australia | `au` |
+| India | `in` |
+| Germany | `de` |
+| France | `fr` |
+| Japan | `jp` |
+| Brazil | `br` |
+| International mix | Use `general` category without country filter |
+
+---
+
+## Security Note on API Key Storage
+
+Your NewsAPI key is stored in `~/.config/smf/skills/daily-news-digest/config.json` with `chmod 600` (owner read/write only). This means:
+
+- The file is not readable by other users on the machine
+- It is NOT encrypted — anyone with root access can read it
+- It will be included in system backups (use Claw System Backup)
+
+If your machine is shared or you have elevated security requirements, use the environment variable approach instead:
+
+```bash
+# Add to ~/.bashrc — only readable by you:
+export NEWSAPI_KEY="your-key-here"
+```
+
+---
+
 ## Next Steps
 
-Setup complete. See **HOWTO.md** for:
+Setup is verified and working. See **HOWTO.md** for complete usage walkthroughs:
 - How to customize your categories
 - How to schedule a daily briefing with cron
 - How to get JSON output for scripting
