@@ -23,6 +23,8 @@ smfw run file-organizer organize-date ~/Downloads
 
 **💡 Tip:** After installing the SMF CLI, launch the OpenClaw TUI and use the skill manager to browse and install skills interactively.
 
+**📖 Full Documentation:** For step-by-step setup, configuration, and usage instructions for each skill, visit **[smfworks.com/skills](https://smfworks.com/skills)**, select a skill, and scroll down to the Setup Guide and How-To Guide sections.
+
 ---
 
 ## 🎁 Free Skills (12)
