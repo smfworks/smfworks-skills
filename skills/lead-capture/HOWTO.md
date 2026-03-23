@@ -160,3 +160,58 @@ Top companies:
 **Export weekly** — build a habit of exporting every Monday morning and importing to your CRM. Never let more than a week of leads pile up un-synced.
 
 **Review your stats monthly** — the `stats` command reveals your lead generation trends. If this week's count is down, investigate what changed.
+
+**Back up your leads file periodically.** Your leads are stored at `~/.smf/leads/leads.json`. Copy it to a safe location regularly:
+
+```bash
+cp ~/.smf/leads/leads.json ~/Backups/leads-backup-$(date +%Y-%m-%d).json
+```
+
+---
+
+## Combining with Other Skills
+
+**Lead Capture + CSV Converter:** Export leads as JSON, then convert to Excel for your team:
+
+```bash
+python3 ~/smfworks-skills/skills/lead-capture/main.py export json
+python3 ~/smfworks-skills/skills/csv-converter/main.py json-to-csv leads-$(date +%Y-%m-%d).json leads.csv
+python3 ~/smfworks-skills/skills/csv-converter/main.py csv-to-excel leads.csv leads-report.xlsx
+```
+
+**Lead Capture + Report Generator:** Generate a monthly leads report:
+
+```bash
+python3 ~/smfworks-skills/skills/lead-capture/main.py export csv
+python3 ~/smfworks-skills/skills/report-generator/main.py create --data leads-$(date +%Y-%m-%d).csv --title "Monthly Leads"
+```
+
+---
+
+## Understanding the Data
+
+Leads are stored in `~/.smf/leads/leads.json` as a JSON array. Each lead looks like:
+
+```json
+{
+  "id": "LEAD-20240315-a1b2c3",
+  "name": "Jane Smith",
+  "email": "jane@acmecorp.com",
+  "company": "Acme Corp",
+  "phone": "+1 555 0100",
+  "notes": "Interested in Pro plan",
+  "captured_at": "2024-03-15T09:42:11"
+}
+```
+
+You can view or edit this file directly in any text editor if you need to:
+- Correct a typo in a lead
+- Add leads from another source
+- Delete a duplicate
+- Add custom fields
+
+```bash
+# View the raw data
+cat ~/.smf/leads/leads.json | python3 -m json.tool | head -30
+```
+
