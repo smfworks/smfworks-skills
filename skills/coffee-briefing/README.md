@@ -1,282 +1,193 @@
 # Coffee Briefing
 
-> Your personalized morning briefing — news, weather, tasks, and insights while your coffee brews
+> Get your personalized morning briefing — weather, calendar events, and news — delivered in one clean terminal output while you brew your coffee.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Requires:** OpenWeatherMap API key (free) + Google Calendar access  
+**Version:** 1.0  
+**Category:** Productivity / Daily Briefing
 
 ---
 
 ## What It Does
 
-Coffee Briefing delivers a customized morning summary right when you need it — while your coffee is brewing. It gathers your calendar, weather, top news headlines, task reminders, and any custom notes you've added, presenting them in a clean digest you can read in under a minute.
+Coffee Briefing is an OpenClaw Pro skill that combines three data sources into a single morning brief: current weather and forecast (via OpenWeatherMap), today's calendar events (via Google Calendar), and curated news headlines. Run it each morning and get everything you need in under 30 seconds.
+
+**What it does NOT do:** It does not send email, push notifications, read emails, check tasks, or provide sports scores.
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
+- [ ] **OpenWeatherMap API key** — free at [openweathermap.org/api](https://openweathermap.org/api)
+- [ ] **Google Calendar API** configured (see SETUP.md)
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Free tier:**
 ```bash
-smfw install coffee-briefing
-```
-
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/coffee-briefing
+python3 main.py --configure
 ```
 
 ---
 
 ## Quick Start
 
-Get your personalized morning briefing:
+After configuration:
 
 ```bash
-python main.py briefing
+python3 main.py
+```
+
+Output:
+```
+☕ Good Morning! — Wednesday, March 15, 2024
+═══════════════════════════════════════════
+
+🌤️ Weather — New York, NY
+   Currently: 54°F, Partly Cloudy
+   Today: High 61°F / Low 48°F
+   Tomorrow: Rain expected — bring an umbrella ☂️
+
+📅 Today's Calendar
+   09:00 AM — Team Standup (30 min)
+   11:00 AM — Client Demo — Acme Corp (1 hr)
+   02:00 PM — Budget Review (1 hr)
+   06:30 PM — Dinner with Sarah
+
+📰 Morning Headlines
+   1. Fed Holds Rates Steady Amid Mixed Economic Data
+   2. Apple Announces New Developer Tools at WWDC
+   3. Climate Summit Reaches Landmark Agreement
+
+Configure: smf run coffee-briefing --configure
 ```
 
 ---
 
-## Commands
+## Command Reference
 
-### `briefing`
+### Default (no arguments)
 
-**What it does:** Generate your complete morning briefing with weather, news, calendar, and tasks.
+Generates and prints your morning briefing using saved configuration.
 
 **Usage:**
 ```bash
-python main.py briefing [date]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `date` | ❌ No | Date for briefing (YYYY-MM-DD, default: today) | `2026-03-25` |
-
-**Example:**
-```bash
-python main.py briefing
-python main.py briefing 2026-03-25
-```
-
-**Output:**
-```
-☕ Good morning! Here's your briefing for March 25, 2026:
-
-📅 TODAY'S SCHEDULE
-------------------------------------------------------------
-9:00 AM  - Team standup meeting
-11:00 AM - Client call: Smith Industries
-2:00 PM  - Project review
-
-🌤️ WEATHER (New York)
-------------------------------------------------------------
-Currently: 58°F, Partly Cloudy
-High: 65°F | Low: 52°F
-Perfect day for a walk!
-
-📰 TOP NEWS
-------------------------------------------------------------
-1. Tech stocks rally on AI demand (Bloomberg)
-2. New renewable energy breakthrough (Reuters)
-3. Local events this weekend (Local News)
-
-✅ YOUR TASKS
-------------------------------------------------------------
-• Review Q1 sales report
-• Send follow-up emails
-• Schedule team 1:1s
-
-💡 INSIGHTS
-------------------------------------------------------------
-"Focus on progress, not perfection." — Your daily reminder
-
-Have a great day! ☕
+python3 main.py
 ```
 
 ---
 
-### `config`
+### `--configure` / `-c`
 
-**What it does:** Configure your briefing preferences, location, and API keys.
+Interactive setup wizard. Prompts for your location, OpenWeatherMap API key, Google Calendar credentials, and preferred briefing settings.
 
 **Usage:**
 ```bash
-python main.py config
-```
-
-**Example:**
-```bash
-python main.py config
-```
-
-**Output:**
-```
-⚙️  Briefing Configuration
-==================================================
-
-Location for weather [New York]:
-News categories [technology, business, local]:
-API Keys:
-  OpenWeatherMap: ✅ Set
-  News API: ✅ Set
-  Calendar: ✅ Set
-
-✅ Configuration saved!
+python3 main.py --configure
 ```
 
 ---
 
-### `add`
+### `--output json` / `-o json`
 
-**What it does:** Add a custom item to your daily briefing.
-
-**Usage:**
-```bash
-python main.py add "Your reminder text"
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `text` | ✅ Yes | The reminder or note to add | `Review contracts` |
-
-**Example:**
-```bash
-python main.py add "Review Q1 sales report"
-python main.py add "Call mom on her birthday"
-python main.py add "Pick up dry cleaning"
-```
-
-**Output:**
-```
-✅ Added to briefing: "Review Q1 sales report"
-```
-
----
-
-### `list`
-
-**What it does:** View all items queued for your briefing.
+Outputs the briefing as JSON instead of formatted text.
 
 **Usage:**
 ```bash
-python main.py list
-```
-
-**Example:**
-```bash
-python main.py list
-```
-
-**Output:**
-```
-📋 Your Briefing Items:
-------------------------------------------------------------
-1. Review Q1 sales report
-2. Send follow-up emails
-3. Schedule team 1:1s
-4. Pick up dry cleaning
-```
-
----
-
-### `weather`
-
-**What it does:** Get just the weather forecast without full briefing.
-
-**Usage:**
-```bash
-python main.py weather
-```
-
-**Example:**
-```bash
-python main.py weather
-```
-
-**Output:**
-```
-🌤️ Weather for New York:
-   Currently: 58°F, Partly Cloudy
-   Feels like: 56°F
-   High: 65°F | Low: 52°F
-   Wind: 8 mph NW
-   Humidity: 65%
-```
-
----
-
-### `news`
-
-**What it does:** Get just the news headlines without full briefing.
-
-**Usage:**
-```bash
-python main.py news
-```
-
-**Example:**
-```bash
-python main.py news
-```
-
-**Output:**
-```
-📰 Top News Headlines:
-------------------------------------------------------------
-1. Tech stocks rally on AI demand - Bloomberg
-2. New renewable energy breakthrough - Reuters
-3. Fed signals rate decision - WSJ
-4. Weekend forecast looks great - Weather.com
+python3 main.py --output json
 ```
 
 ---
 
 ## Use Cases
 
-- **Morning routine:** Start your day informed and organized
-- **Productivity boost:** See all your tasks and appointments at a glance
-- **Weather check:** Know if you need an umbrella or sunglasses
-- **News catchup:** Stay informed without doom-scrolling
-- **Meeting prep:** See your day's schedule before heading out
+### 1. Daily morning routine
+
+Schedule via cron at 7 AM — see HOWTO.md for setup.
+
+### 2. Briefing before an important day
+
+```bash
+python3 main.py
+```
+
+Quickly see: what's the weather (do I need a coat?), what meetings are coming up, and what's in the news.
+
+### 3. Save to file for offline reading
+
+```bash
+python3 main.py > ~/briefing-$(date +%Y-%m-%d).txt
+```
 
 ---
 
-## Tips & Tricks
+## Configuration
 
-- Add items the night before: `python main.py add "Prepare slides"`
-- Use cron to auto-generate at 7 AM daily: `0 7 * * * python main.py briefing`
-- Configure multiple locations if you travel frequently
-- Set preferred news categories to filter out noise
+Config file: `~/.config/smf/skills/coffee-briefing/config.json`
+
+| Setting | Description |
+|---------|-------------|
+| `openweathermap_api_key` | Your free OWM API key |
+| `location` | City name or coordinates |
+| `temperature_unit` | `imperial` (°F) or `metric` (°C) |
+| `google_calendar_credentials` | Path to OAuth credentials file |
+| `news_categories` | Categories to include in headlines |
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "API key not set" | Run `python main.py config` to enter your keys |
-| "Weather unavailable" | Check your internet connection or API quota |
-| Empty briefing | Add items with `python main.py add "Your task"` |
-| Wrong location | Re-run `python main.py config` to update |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+### `Error: OpenWeatherMap API key not configured`
+**Fix:** Run `python3 main.py --configure` and enter your free OWM key.
+
+### `Error: Google Calendar not configured`
+**Fix:** See SETUP.md for Google Calendar OAuth setup.
+
+### `City not found` (weather error)
+**Fix:** Try a major nearby city name, or use `City,CountryCode` format: `London,GB`
+
+### Weather shows but Calendar is empty
+**Fix:** Verify your Google Calendar has events for today. Check the calendar name in config matches exactly.
+
+---
+
+## FAQ
+
+**Q: Does this cost extra beyond the Pro subscription?**  
+A: No. OpenWeatherMap's free tier (60 calls/minute) is more than sufficient. Google Calendar API has a free quota that covers personal use.
+
+**Q: Can I add my own news source?**  
+A: News categories are configurable via `--configure`. Custom sources require editing the config file directly.
+
+**Q: Can I see tomorrow's weather?**  
+A: Yes — the briefing includes tomorrow's forecast in the weather section.
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- (Optional) OpenWeatherMap API key for weather
-- (Optional) News API key for headlines
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| SMF Works Pro | Required ($19.99/mo) |
+| OpenWeatherMap API | Free tier |
+| Google Calendar | OAuth credentials required |
+| Internet | Required |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/coffee-briefing)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/coffee-briefing)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
