@@ -1,234 +1,273 @@
 # Database Backup
 
-> Automated backups for SQLite, PostgreSQL, and MySQL databases with compression and restore
+> Back up SQLite, MySQL, and PostgreSQL databases from the terminal — with a step-by-step interactive wizard, rolling retention, and restore support.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Version:** 1.0  
+**Category:** Data / Backup
 
 ---
 
 ## What It Does
 
-Database Backup handles automated backups for all your databases — SQLite, PostgreSQL, and MySQL. It compresses backups to save space, keeps a history of backups, and lets you restore with a single command when things go wrong.
+Database Backup is an OpenClaw Pro skill for creating, listing, and restoring database backups. It supports SQLite (file-based), MySQL/MariaDB, and PostgreSQL. An interactive wizard guides you through the backup process — just answer the prompts and your database is backed up safely.
+
+Backups use the appropriate native tool for each database type: direct file copy for SQLite, `mysqldump` for MySQL, and `pg_dump` for PostgreSQL.
+
+**What it does NOT do:** It does not back up to cloud storage, perform incremental backups (full dump each time), monitor database health, or support other database types (MongoDB, Redis, etc.).
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
+- [ ] **Database-specific tools:**
+  - SQLite: No additional tools needed
+  - MySQL: `mysqldump` installed
+  - PostgreSQL: `pg_dump` installed
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Pro tier:**
 ```bash
-smfw install database-backup
-smf login
-```
-
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/database-backup
+python3 main.py
 ```
 
 ---
 
 ## Quick Start
 
-Start an interactive backup session:
+Run an interactive backup:
 
 ```bash
-python main.py backup
+python3 main.py backup
+```
+
+The wizard prompts:
+```
+Database type (sqlite/mysql/postgres): sqlite
+Database file path: ~/data/myapp.db
+
+✅ Backup created: myapp-2024-03-15-090001.db.gz
+   Size: 2.4 MB
 ```
 
 ---
 
-## Commands
+## Command Reference
 
 ### `backup`
 
-**What it does:** Launch interactive wizard to back up any supported database.
+Interactive backup wizard. Prompts for database type, connection details, and backup location.
 
-**Usage:**
 ```bash
-python main.py backup
+python3 main.py backup
 ```
 
-**Example:**
-```bash
-python main.py backup
-
-# Example session:
-# Select database type: 1 (SQLite)
-# SQLite database file path: ~/myapp.db
-# Backup destination: ~/backups/
-
-# Or PostgreSQL:
-# Select database type: 2 (PostgreSQL)
-# Host: localhost
-# Port: 5432
-# Database name: myapp
-# Username: postgres
-# Password: env:DB_PASSWORD
+For SQLite:
+```
+Database type: sqlite
+Database file: ~/data/myapp.db
+→ Creates: ~/.smf/db-backups/myapp-2024-03-15.db.gz
 ```
 
-**Output:**
+For MySQL:
 ```
-✅ Backup complete!
-   File: ~/.smf/backups/myapp-20260320-143052.sqlite.sql.gz
-   Size: 2.3 MB
-   Compression: 75%
+Database type: mysql
+Host: localhost
+Port: 3306
+Username: myuser
+Password: [prompted securely]
+Database name: myapp_production
+→ Creates: ~/.smf/db-backups/myapp_production-2024-03-15.sql.gz
+```
+
+For PostgreSQL:
+```
+Database type: postgres
+Host: localhost
+Port: 5432
+Username: postgres
+Database name: myapp
+→ Creates: ~/.smf/db-backups/myapp-2024-03-15.sql.gz
 ```
 
 ---
 
 ### `list`
 
-**What it does:** Display all existing backups with size and date.
+Lists all database backups with size, date, and database name.
 
-**Usage:**
 ```bash
-python main.py list
+python3 main.py list
 ```
 
-**Example:**
-```bash
-python main.py list
+Output:
 ```
+📋 Database Backups (4 total):
 
-**Output:**
-```
-💾 5 Backup(s)
---------------------------------------------------------------------------------
-Name                                               Size       Date
---------------------------------------------------------------------------------
-myapp-20260320-143052.sqlite.sql.gz              2.3 MB     2026-03-20 14:30:52
-myapp-20260319-120000.sqlite.sql.gz              2.1 MB     2026-03-19 12:00:00
-postgres-prod-20260318-080000.postgres.sql.gz    45.7 MB    2026-03-18 08:00:00
+1. myapp-2024-03-15-090001.db.gz — 2.4 MB — 2024-03-15 09:00
+2. myapp-2024-03-14-090001.db.gz — 2.4 MB — 2024-03-14 09:00
+3. production-2024-03-15-020001.sql.gz — 48.7 MB — 2024-03-15 02:00
+4. production-2024-03-14-020001.sql.gz — 47.9 MB — 2024-03-14 02:00
+
+Total: 4 backups, 101.4 MB
 ```
 
 ---
 
 ### `stats`
 
-**What it does:** Show backup statistics and storage usage.
+Shows backup statistics: total count, total size, last backup time, oldest backup.
 
-**Usage:**
 ```bash
-python main.py stats
+python3 main.py stats
 ```
 
-**Example:**
-```bash
-python main.py stats
-```
-
-**Output:**
+Output:
 ```
 📊 Backup Statistics
-========================================
-Total backups: 15
-Total size: 128.5 MB
-Backup location: ~/.smf/backups
-
-Backups by database:
-  myapp: 10 backup(s)
-  postgres-prod: 5 backup(s)
+─────────────────────
+Total backups: 4
+Total size: 101.4 MB
+Last backup: 2024-03-15 09:00
+Oldest backup: 2024-03-14 02:00
 ```
 
 ---
 
-### `restore`
+### `restore <file>`
 
-**What it does:** Restore a database from a compressed backup file.
+Restores a database from a backup file. SQLite restore only (MySQL and PostgreSQL require manual import).
 
-**Usage:**
 ```bash
-python main.py restore [backup-file]
+python3 main.py restore ~/.smf/db-backups/myapp-2024-03-14-090001.db.gz
 ```
 
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `backup-file` | ✅ Yes | Path to backup file | `~/backups/myapp-20260320.sqlite.sql.gz` |
-
-**Example:**
-```bash
-python main.py restore ~/.smf/backups/myapp-20260320-143052.sqlite.sql.gz
+Output:
 ```
+🔄 Restoring backup: myapp-2024-03-14-090001.db.gz
+   Target: ~/data/myapp.db
+   Decompressing and restoring...
 
-**Output:**
-```
-⚠️  This will overwrite: ~/myapp.db
-Are you sure? (yes/no): yes
-✅ Restored successfully!
+✅ Restore complete!
 ```
 
 ---
 
-### `cleanup`
+### `cleanup [days]`
 
-**What it does:** Remove backups older than specified days.
+Removes backups older than N days (default: 30 days).
 
-**Usage:**
 ```bash
-python main.py cleanup [days]
+python3 main.py cleanup 30
 ```
 
-**Arguments:**
-
-| Argument | Required | Description | Default |
-|----------|----------|-------------|---------|
-| `days` | ❌ No | Remove backups older than N days | `30` |
-
-**Example:**
-```bash
-python main.py cleanup
-python main.py cleanup 7
+Output:
+```
+🧹 Removing backups older than 30 days...
+✅ Removed 3 old backups (saved 148.2 MB)
 ```
 
 ---
 
 ## Use Cases
 
-- **Daily backups:** Schedule automatic daily backups via cron
-- **Before updates:** Create a backup before updating your application
-- **Migration:** Back up a database before moving to a new server
-- **Disaster recovery:** Restore from backup when things go wrong
-- **Audit trail:** Keep point-in-time backups for compliance
+### 1. Daily database backup
+
+Schedule via cron (see HOWTO.md for setup details).
+
+### 2. Pre-migration backup
+
+Always back up before schema changes or data migrations:
+
+```bash
+python3 main.py backup
+# Then run your migration
+```
+
+### 3. Restore after accidental data deletion
+
+```bash
+python3 main.py list
+python3 main.py restore /path/to/backup.db.gz
+```
+
+### 4. Audit backup history
+
+```bash
+python3 main.py stats
+```
 
 ---
 
-## Tips & Tricks
+## Configuration
 
-- Use `env:VARNAME` for passwords to avoid storing them in plain text
-- Backups are automatically compressed (70-90% size reduction typical)
-- Set up cron for hands-free daily backups: `0 2 * * * smf run database-backup backup`
-- Store backups on a different drive than your database for true disaster recovery
-- Use `stats` to monitor your backup storage usage
+Backup storage: `~/.smf/db-backups/`  
+No config file required — connection details are entered interactively during each backup run.
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "pg_dump not found" | Install PostgreSQL client: `sudo apt install postgresql-client` |
-| "mysqldump not found" | Install MySQL client: `sudo apt install mysql-client` |
-| "Authentication failed" | Check password or use `env:VARNAME` syntax |
-| Permission denied | Ensure backup directory is writable: `chmod 700 ~/.smf/backups` |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+### `mysqldump: command not found`
+MySQL client tools not installed.  
+**Fix:** `sudo apt install mysql-client` (Ubuntu) or `brew install mysql-client` (macOS).
+
+### `pg_dump: command not found`
+PostgreSQL client tools not installed.  
+**Fix:** `sudo apt install postgresql-client` (Ubuntu) or `brew install postgresql` (macOS).
+
+### `Access denied for user 'xxx'` (MySQL)
+Wrong username or password.  
+**Fix:** Verify credentials. Ensure the user has SELECT and LOCK TABLES privileges.
+
+### Backup file is 0 bytes
+The dump command failed silently.  
+**Fix:** Run the backup again and check the output carefully. Verify database credentials and accessibility.
+
+### `Error: File not found` for SQLite
+Wrong file path for the SQLite database.  
+**Fix:** Use the full absolute path: `/home/user/data/myapp.db`
+
+---
+
+## FAQ
+
+**Q: Does it store my database credentials?**  
+A: Credentials are entered interactively and not saved between runs. For automation, use environment variables (see HOWTO.md).
+
+**Q: Can I restore MySQL/PostgreSQL backups?**  
+A: CLI restore is only supported for SQLite. For MySQL: `gunzip -c backup.sql.gz | mysql -u user -p database`. For PostgreSQL: `gunzip -c backup.sql.gz | psql -U user database`
+
+**Q: What's the compression ratio?**  
+A: SQL dumps typically compress 5–10× with gzip. A 500 MB MySQL dump often produces a 50–100 MB `.sql.gz` file.
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- (Optional) `sqlite3` command for SQLite verification
-- (Optional) `pg_dump` for PostgreSQL backups
-- (Optional) `mysqldump` for MySQL backups
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| SMF Works Pro | Required ($19.99/mo) |
+| mysqldump | Required for MySQL backups |
+| pg_dump | Required for PostgreSQL backups |
+| External APIs | None |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/database-backup)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/database-backup)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
