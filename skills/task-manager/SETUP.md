@@ -82,6 +82,27 @@ python3 main.py task move TASK-ID --to done        # Complete task
 python3 main.py stats                               # View statistics
 ```
 
+## Status Columns Reference
+
+Tasks move through these Kanban columns in order:
+
+| Column | Use when... |
+|--------|-------------|
+| `backlog` | Captured but not yet planned (default for new tasks) |
+| `todo` | Planned for this week/sprint |
+| `in-progress` | Actively being worked on right now |
+| `review` | Work complete, needs review or testing |
+| `done` | Finished and accepted |
+
+## Priority Levels Reference
+
+| Priority | When to use |
+|----------|-------------|
+| `low` | Nice to have, no urgency |
+| `medium` | Normal priority, no deadline pressure |
+| `high` | Important, needs attention this sprint |
+| `critical` | Blocking other work or due immediately |
+
 ## Next Steps
 
 Setup complete. See **HOWTO.md** for walkthroughs on project setup, task management, Kanban workflow, and cron automation.
