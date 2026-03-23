@@ -1,286 +1,313 @@
 # Task Manager
 
-> Kanban-style task and project management for individuals and teams
+> Manage tasks and projects with a Kanban-style board in your terminal — with priorities, due dates, assignees, and project grouping.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Version:** 1.0  
+**Category:** Productivity / Project Management
 
 ---
 
 ## What It Does
 
-Task Manager brings simple project management to your terminal. Create projects, add tasks with priorities and due dates, move them across Kanban columns (backlog, todo, in-progress, review, done), and track your progress with statistics.
+Task Manager is an OpenClaw Pro skill for tracking work with a command-line Kanban board. Create projects, add tasks with priorities and due dates, move tasks through status columns (backlog → todo → in-progress → review → done), and see statistics on your project progress.
+
+All tasks are stored locally in `~/.smf/tasks/`. No cloud sync, no subscription-per-seat — just fast, private task management.
+
+**What it does NOT do:** It does not sync to Jira, Trello, Asana, or other platforms, send notifications, track time, or handle recurring tasks.
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Pro tier:**
 ```bash
-smfw install task-manager
-smf login
-```
-
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/task-manager
+python3 main.py help
 ```
 
 ---
 
 ## Quick Start
 
-Create a project and add your first task:
-
 ```bash
-smf run task-manager project add "My Project"
-smf run task-manager task add "First task" --project "My Project"
+# Create a project
+python3 main.py project add "Website Redesign"
+
+# Add a task
+python3 main.py task add "Fix navigation bug" --project website --priority high
+
+# View the board
+python3 main.py board --project website
+
+# Move task to in-progress
+python3 main.py task move TASK-ABC123 --to in-progress
 ```
 
 ---
 
-## Commands
+## Command Reference
 
-### `project add`
+### `project add "Name"`
 
-**What it does:** Create a new project.
+Creates a new project.
 
-**Usage:**
 ```bash
-smf run task-manager project add [name] [description]
+python3 main.py project add "Website Redesign"
+python3 main.py project add "Q2 Marketing" "Marketing campaigns for Q2"
 ```
 
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `name` | ✅ Yes | Project name | `Website Redesign` |
-| `description` | ❌ No | Project description | `Redesign company website` |
-
-**Example:**
-```bash
-smf run task-manager project add "Website Redesign"
-smf run task-manager project add "Website Redesign" "Redesign company website"
+Output:
+```
+✅ Project created: Website Redesign (website-redesign)
 ```
 
 ---
 
 ### `project list`
 
-**What it does:** List all projects.
+Lists all projects.
 
-**Usage:**
 ```bash
-smf run task-manager project list
+python3 main.py project list
+```
+
+Output:
+```
+📁 Projects (3 total):
+
+1. Website Redesign (website-redesign) — 12 tasks, 4 done
+2. Q2 Marketing (q2-marketing) — 8 tasks, 2 done
+3. Infrastructure (infrastructure) — 5 tasks, 1 done
 ```
 
 ---
 
-### `task add`
+### `task add "Title"`
 
-**What it does:** Add a new task to a project.
+Adds a task. Interactive if no flags provided; flags for quick add.
 
-**Usage:**
 ```bash
-smf run task-manager task add [title] [options]
+python3 main.py task add "Fix navigation bug"
+python3 main.py task add "Fix navigation" --project website --priority high --due 2024-03-20
+python3 main.py task add "Write tests" --project website --priority medium --assignee "Alice"
 ```
 
-**Arguments:**
+**Options for task add:**
 
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `title` | ✅ Yes | Task title | `Fix navigation` |
+| Option | Description | Values |
+|--------|-------------|--------|
+| `--project PROJECT` | Project slug | e.g., `website-redesign` |
+| `--priority LEVEL` | Priority | `low`, `medium`, `high`, `critical` |
+| `--due YYYY-MM-DD` | Due date | e.g., `2024-03-20` |
+| `--assignee NAME` | Assigned to | Any name |
+| `--tags TAGS` | Comma-separated tags | e.g., `bug,frontend` |
+| `--description TEXT` | Task description | Any text |
 
-**Options:**
-
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--project` | ❌ No | Project name or ID | `--project "Website Redesign"` |
-| `--priority` | ❌ No | low/medium/high/critical | `--priority high` |
-| `--due` | ❌ No | Due date (YYYY-MM-DD) | `--due 2026-04-01` |
-| `--assignee` | ❌ No | Person assigned | `--assignee "John"` |
-| `--tags` | ❌ No | Comma-separated tags | `--tags "bug,urgent"` |
-
-**Example:**
-```bash
-smf run task-manager task add "Fix navigation" --priority high --due 2026-04-01
-smf run task-manager task add "Write content" --project "Website Redesign" --tags "content"
+Output:
 ```
-
----
-
-### `task show`
-
-**What it does:** Show full details of a task.
-
-**Usage:**
-```bash
-smf run task-manager task show [task-id]
-```
-
-**Example:**
-```bash
-smf run task-manager task show TASK-ABC123
-```
-
----
-
-### `task move`
-
-**What it does:** Move a task to a different status column.
-
-**Usage:**
-```bash
-smf run task-manager task move [task-id] --to [status]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `task-id` | ✅ Yes | Task ID | `TASK-ABC123` |
-
-**Options:**
-
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--to` | ✅ Yes | Target status |
-
-**Statuses:** `backlog`, `todo`, `in-progress`, `review`, `done`
-
-**Example:**
-```bash
-smf run task-manager task move TASK-ABC123 --to done
-smf run task-manager task move TASK-ABC123 --to in-progress
+✅ Task created: TASK-ABC123
+   Title: Fix navigation bug
+   Project: Website Redesign
+   Priority: high
+   Status: backlog
 ```
 
 ---
 
 ### `board`
 
-**What it does:** Display Kanban board view of tasks.
+Shows the Kanban board for a project (or all tasks).
 
-**Usage:**
 ```bash
-smf run task-manager board [options]
+python3 main.py board
+python3 main.py board --project website-redesign
 ```
 
-**Options:**
+Output:
+```
+📋 Board: Website Redesign
+═══════════════════════════════════════════════════════
 
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--project` | ❌ No | Filter by project name |
+BACKLOG (3)          TODO (2)          IN-PROGRESS (2)   REVIEW (1)    DONE (4)
+──────────────       ─────────────     ──────────────     ──────────    ──────────
+TASK-001             TASK-004          TASK-006 ⚠️ DUE    TASK-008      TASK-003
+Fix nav bug          Write tests       Design mockups      Code review   Landing page
+● high               ● medium          ● high             ● medium      ✅ done
 
-**Example:**
+TASK-002             TASK-005          TASK-007
+Add dark mode        Review PRs        API integration
+● medium             ● low             ● critical
+...
+```
+
+---
+
+### `task move TASK-ID --to STATUS`
+
+Moves a task to a different Kanban column.
+
 ```bash
-smf run task-manager board
-smf run task-manager board --project "Website Redesign"
+python3 main.py task move TASK-ABC123 --to in-progress
+python3 main.py task move TASK-ABC123 --to done
+```
+
+Status columns: `backlog` → `todo` → `in-progress` → `review` → `done`
+
+Output:
+```
+✅ Task TASK-ABC123 moved to in-progress
+```
+
+---
+
+### `task show TASK-ID`
+
+Shows full task details.
+
+```bash
+python3 main.py task show TASK-ABC123
+```
+
+Output:
+```
+📋 Task: TASK-ABC123
+
+Title: Fix navigation bug
+Project: Website Redesign
+Status: in-progress
+Priority: high 🔴
+Due: 2024-03-20 (5 days remaining)
+Assignee: Alice
+Tags: bug, frontend
+Description: Navigation links don't work on mobile Safari
+Created: 2024-03-15 09:42
+```
+
+---
+
+### `task edit TASK-ID`
+
+Prompts to update task fields.
+
+```bash
+python3 main.py task edit TASK-ABC123
 ```
 
 ---
 
 ### `list`
 
-**What it does:** List all tasks in table format.
+Lists all tasks with optional filters.
 
-**Usage:**
 ```bash
-smf run task-manager list [options]
-```
-
-**Options:**
-
-| Option | Required | Description |
-|--------|----------|-------------|
-| `--status` | ❌ No | Filter by status |
-
-**Example:**
-```bash
-smf run task-manager list
-smf run task-manager list --status todo
+python3 main.py list
+python3 main.py list --status in-progress
+python3 main.py list --project website-redesign
 ```
 
 ---
 
 ### `stats`
 
-**What it does:** Show project/task statistics.
+Shows project statistics.
 
-**Usage:**
 ```bash
-smf run task-manager stats [options]
+python3 main.py stats
+python3 main.py stats --project website-redesign
 ```
 
-**Example:**
-```bash
-smf run task-manager stats
+Output:
 ```
+📊 Statistics: Website Redesign
 
-**Output:**
-```
-📊 Task Statistics
-==================================================
+Total tasks: 12
+  Backlog: 3
+  To Do: 2
+  In Progress: 2
+  Review: 1
+  Done: 4
 
-Total Tasks: 25
-Completed: 18 (72.0%)
-Due Soon (≤3 days): 3
-
-By Status:
-  todo: 5
-  in-progress: 2
-  review: 1
-  done: 18
-
-By Priority:
-  critical: 2
-  high: 5
-  medium: 10
-  low: 8
+Completion rate: 33.3%
+Critical tasks: 1
+Overdue: 1
 ```
 
 ---
 
 ## Use Cases
 
-- **Personal productivity:** Track personal tasks and to-dos
-- **Project tracking:** Manage tasks for specific projects
-- **Kanban workflow:** Visualize work across columns
-- **Prioritization:** Focus on high-priority tasks
-- **Due date tracking:** Never miss a deadline
+### 1. Personal project tracking
+
+Track tasks for any personal project with priorities and due dates.
+
+### 2. Team task assignment
+
+Assign tasks to team members with `--assignee` and view who's working on what.
+
+### 3. Daily standup prep
+
+View the board each morning before standup: `python3 main.py board --project myproject`
 
 ---
 
-## Tips & Tricks
+## Configuration
 
-- Create projects to organize tasks by area
-- Use priorities to focus on what matters most
-- Use `--due` to track deadlines
-- Check `stats` regularly for progress overview
-- Move tasks to `done` when completed
+No configuration file needed. Data stored at: `~/.smf/tasks/`
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "Subscription required" | Run `smf login` to activate Pro access |
-| "Project not found" | Check project name with `project list` |
-| "Invalid status" | Use: backlog, todo, in-progress, review, done |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+### `Task not found: TASK-XYZ`
+**Fix:** Task IDs are case-sensitive. Use `python3 main.py list` to find the exact ID.
+
+### `Project not found`
+**Fix:** Use the project slug (lowercase, hyphenated), not the display name. Check with `python3 main.py project list`.
+
+### Board shows all tasks instead of one project
+**Fix:** Use `--project PROJECT-SLUG` to filter by project.
+
+---
+
+## FAQ
+
+**Q: Can I delete a task?**  
+A: `task delete TASK-ID` archives the task (moves it to an archived state, not permanent deletion).
+
+**Q: Can I export tasks?**  
+A: Tasks are stored as JSON in `~/.smf/tasks/`. You can export or process the JSON directly.
+
+**Q: What's the difference between `list` and `board`?**  
+A: `list` shows a simple list of tasks. `board` shows the Kanban view organized by status columns.
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- Pro subscription
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| SMF Works Pro | Required ($19.99/mo) |
+| External APIs | None |
+| Internet | For subscription check only |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/task-manager)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/task-manager)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
