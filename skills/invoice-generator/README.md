@@ -1,511 +1,235 @@
 # Invoice Generator
 
-Create professional invoices, track payments, and manage billing for your business.
+> Create professional invoices and track payments — no accounting software needed
 
-## Features
+---
 
-- ✅ **Client Management** — Store client details and payment terms
-- ✅ **Professional Invoices** — Itemized billing with tax and discounts
-- ✅ **Multiple Formats** — Export as HTML or JSON
-- ✅ **Payment Tracking** — Record partial and full payments
-- ✅ **Status Management** — Draft, sent, paid, overdue, cancelled
-- ✅ **Financial Reports** — Monthly and cumulative revenue reports
-- ✅ **Local Storage** — All data stays on your machine
+## What It Does
+
+Invoice Generator creates clean, professional invoices for freelancers and small businesses. Add line items, apply tax, track payment status, and export to PDF. Everything runs locally — no subscriptions or cloud services.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-# Install SMF CLI (if not already)
-curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
-
-# Login (Pro skill requires subscription)
-smf login
-
-# Install the skill
-smf install invoice-generator
+smfw install invoice-generator
 ```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
+
+---
 
 ## Quick Start
 
-### 1. Add a Client
+Create your first invoice:
 
 ```bash
-smf run invoice-generator client add "Acme Corporation"
+python main.py create --client "Acme Corp" --items "Consulting,150,10"
 ```
 
-### 2. Create an Invoice
+---
 
+## Commands
+
+### `create`
+
+**What it does:** Create a new invoice with line items.
+
+**Usage:**
 ```bash
-# Interactive mode
-smf run invoice-generator create
-
-# Quick mode
-smf run invoice-generator create \
-  --client "Acme Corporation" \
-  --item "Website Design:1:1500" \
-  --item "Hosting:12:50"
+python main.py create --client [name] --items [items]
 ```
 
-### 3. Export as HTML
+**Arguments:**
 
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `--client` | ✅ Yes | Client name | `--client "Acme Corp"` |
+| `--items` | ✅ Yes | Items as "name,price,qty" (comma-separated) | `--items "Service,100,1"` |
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--tax` | ❌ No | Tax rate percentage | `--tax 10` |
+| `--due` | ❌ No | Due date (YYYY-MM-DD) | `--due 2026-04-01` |
+| `--notes` | ❌ No | Additional notes | `--notes "Thank you!"` |
+
+**Example:**
 ```bash
-smf run invoice-generator export INV-202603-ABC123
-# Creates: INV-202603-ABC123.html
+python main.py create --client "Acme Corp" --items "Consulting,150,10"
+python main.py create --client "Jane Doe" --items "Design,75,20,Web design work" --tax 8.5
 ```
 
-### 4. Record Payment
+**Output:**
+```
+✅ Invoice created: INV-001
+   Client: Acme Corp
+   Amount: $1,500.00
+   Due: 2026-04-01
+   Status: pending
 
+To view: python main.py show INV-001
+To export PDF: python main.py pdf INV-001
+```
+
+---
+
+### `list`
+
+**What it does:** Display all invoices with status.
+
+**Usage:**
 ```bash
-smf run invoice-generator pay INV-202603-ABC123 --amount 1500 --method "bank-transfer"
+python main.py list
 ```
 
-## Usage
-
-### Client Management
-
-**Add client:**
+**Example:**
 ```bash
-smf run invoice-generator client add "Company Name"
+python main.py list
 ```
 
-**List clients:**
-```bash
-smf run invoice-generator client list
+**Output:**
 ```
-
-### Creating Invoices
-
-**Interactive mode:**
-```bash
-smf run invoice-generator create
-```
-
-You'll be prompted for:
-- Client name
-- Invoice items (description, quantity, price)
-- Tax rate (optional)
-- Discount (optional)
-- Notes (optional)
-
-**Quick mode with items:**
-```bash
-smf run invoice-generator create \
-  --client "Acme Corp" \
-  --item "Website Design:1500" \
-  --item "Logo Design:500" \
-  --item "Hosting Setup:1:200"
-```
-
-**Item format:**
-- `Description:Price` — Single quantity
-- `Description:Qty:Price` — Multiple quantity
-- Example: `Consulting:10:150` = 10 hours at $150/hour
-
-**With tax and discount:**
-```bash
-smf run invoice-generator create \
-  --client "Acme Corp" \
-  --item "Services:2000" \
-  --item "Materials:500" \
-  --tax 8.5 \
-  --discount 10
-```
-
-### Listing Invoices
-
-**All invoices:**
-```bash
-smf run invoice-generator list
-```
-
-**Filter by status:**
-```bash
-smf run invoice-generator list --status paid
-smf run invoice-generator list --status overdue
-```
-
-**Invoice statuses:**
-- `draft` — Created but not sent
-- `sent` — Sent to client
-- `paid` — Fully paid
-- `overdue` — Past due date
-- `cancelled` — Voided
-
-### Viewing Invoice Details
-
-```bash
-smf run invoice-generator show INV-202603-ABC123
-```
-
-Output:
-```
-📄 Invoice INV-202603-ABC123
-============================================================
-Status: PAID
-Client: Acme Corporation
-Date: 2026-03-20
-Due: 2026-04-20
-
-Items:
-  • Website Design: 1 x $1500.00 = $1500.00
-  • Hosting Setup: 1 x $200.00 = $200.00
-
-Subtotal: $1700.00
-Tax: $144.50
-Total: $1844.50
-```
-
-### Recording Payments
-
-**Full payment:**
-```bash
-smf run invoice-generator pay INV-202603-ABC123 --amount 1844.50 --method "bank-transfer"
-```
-
-**Partial payment:**
-```bash
-smf run invoice-generator pay INV-202603-ABC123 --amount 1000 --method "check"
-```
-
-**Payment methods:**
-- bank-transfer
-- check
-- credit-card
-- cash
-- paypal
-- other
-
-### Exporting Invoices
-
-**Export as HTML (for email/print):**
-```bash
-smf run invoice-generator export INV-202603-ABC123 --html
-```
-
-**Export as JSON (for integration):**
-```bash
-smf run invoice-generator export INV-202603-ABC123 --json
-```
-
-Open HTML invoice:
-```bash
-# Linux
-xdg-open ~/.smf/invoices/INV-202603-ABC123.html
-
-# macOS
-open ~/.smf/invoices/INV-202603-ABC123.html
-```
-
-### Financial Reports
-
-**All-time report:**
-```bash
-smf run invoice-generator report
-```
-
-**Monthly report:**
-```bash
-smf run invoice-generator report --month 2026-03
-```
-
-Output:
-```
-💰 Financial Report: 2026-03
-==================================================
-
-Total Invoices: 12
-Total Invoiced: $15,400.00
-Total Paid: $12,800.00
-Outstanding: $2,600.00
-Collection Rate: 83.1%
-
-Top Clients:
-  • Acme Corporation: $5,200.00
-  • Tech Startup LLC: $3,800.00
-  • Consulting Inc: $2,400.00
-```
-
-## Invoice Format
-
-### HTML Invoice Includes:
-
-- Professional header with your company name
-- Client billing information
-- Invoice number and dates
-- Itemized line items with quantities
-- Subtotal, discount, tax calculations
-- Grand total with status badge
-- Payment terms and thank you message
-
-**Status badges:**
-- ✅ **PAID** (green)
-- 📤 **SENT** (blue)
-- 📝 **DRAFT** (gray)
-- ⚠️ **OVERDUE** (red)
-- ❌ **CANCELLED** (gray)
-
-### Sample Invoice Structure
-
-```
-YOUR COMPANY NAME
-
-INVOICE                                               [STATUS BADGE]
-
-Bill To:                              Invoice Number: INV-202603-ABC123
-Acme Corporation                      Date: 2026-03-20
-contact@acme.com                      Due Date: 2026-04-20
-123 Main St
-
+📋 Invoices:
 ------------------------------------------------------------
-Description              Qty    Unit Price    Total
-------------------------------------------------------------
-Website Design           1      $1,500.00     $1,500.00
-Logo Design              1      $500.00       $500.00
-------------------------------------------------------------
-
-Subtotal:                              $2,000.00
-Discount (10%):                         -$200.00
-Tax (8.5%):                           $153.00
-------------------------------------------------------------
-Total:                                 $1,953.00
-
-Notes:
-Payment terms: Net 30 days
-
-Thank you for your business!
+INV-001 | Acme Corp    | $1,500.00 | pending  | Due: 2026-04-01
+INV-002 | Jane Doe     | $600.00   | paid     | Paid: 2026-03-15
+INV-003 | Bob Smith    | $225.00   | overdue  | Due: 2026-03-01
 ```
 
-## Storage Structure
+---
 
-```
-~/.smf/invoices/
-├── clients.json                    # Client database
-├── INV-202603-ABC123.json          # Invoice data
-├── INV-202603-ABC123.html          # HTML export
-├── INV-202603-DEF456.json
-└── ...
-```
+### `show`
 
-### Invoice JSON Format
+**What it does:** Display full invoice details.
 
-```json
-{
-  "id": "INV-202603-ABC123",
-  "invoice_number": "INV-202603-ABC123",
-  "client_id": "client-a1b2c3d4",
-  "client_name": "Acme Corporation",
-  "client_email": "billing@acme.com",
-  "items": [
-    {
-      "description": "Website Design",
-      "quantity": 1,
-      "unit_price": 1500.00,
-      "total": 1500.00
-    }
-  ],
-  "subtotal": 1500.00,
-  "discount_percent": 0,
-  "discount_amount": 0,
-  "tax_percent": 8.5,
-  "tax_amount": 127.50,
-  "total": 1627.50,
-  "currency": "USD",
-  "status": "paid",
-  "created_at": "2026-03-20T14:30:00",
-  "due_date": "2026-04-20",
-  "paid_at": "2026-03-25T10:00:00",
-  "payments": [
-    {
-      "amount": 1627.50,
-      "method": "bank-transfer",
-      "paid_at": "2026-03-25T10:00:00"
-    }
-  ]
-}
-```
-
-## Workflows
-
-### Monthly Billing Cycle
-
-**Week 1:**
+**Usage:**
 ```bash
-# Review outstanding invoices
-smf run invoice-generator list --status sent
-smf run invoice-generator list --status overdue
-
-# Send reminders for overdue
+python main.py show [invoice-id]
 ```
 
-**Week 2:**
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `invoice-id` | ✅ Yes | Invoice ID to display | `INV-001` |
+
+**Example:**
 ```bash
-# Create new invoices
-smf run invoice-generator create --client "Client A" --item "Monthly Services:1000"
-smf run invoice-generator create --client "Client B" --item "Retainer:2500"
-
-# Export and send
-smf run invoice-generator export INV-202603-...
-# Email HTML files to clients
+python main.py show INV-001
 ```
 
-**Week 3:**
+---
+
+### `pdf`
+
+**What it does:** Export an invoice to PDF format.
+
+**Usage:**
 ```bash
-# Record payments as they come in
-smf run invoice-generator pay INV-202603-... --amount 1000 --method "bank-transfer"
+python main.py pdf [invoice-id] [options]
 ```
 
-**Week 4:**
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `invoice-id` | ✅ Yes | Invoice ID to export | `INV-001` |
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--output` | ❌ No | Output file path | `--output invoice.pdf` |
+
+**Example:**
 ```bash
-# Generate monthly report
-smf run invoice-generator report --month 2026-03
+python main.py pdf INV-001
+python main.py pdf INV-001 --output ~/invoices/INV-001.pdf
 ```
 
-### Project-Based Billing
+---
 
-**Milestone 1 - Deposit:**
+### `mark`
+
+**What it does:** Update invoice payment status.
+
+**Usage:**
 ```bash
-smf run invoice-generator create \
-  --client "Tech Startup" \
-  --item "Project Deposit:5000"
+python main.py mark [invoice-id] [options]
 ```
 
-**Milestone 2 - Development:**
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `invoice-id` | ✅ Yes | Invoice ID to update | `INV-001` |
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--paid` | ❌ No | Mark as paid | `--paid` |
+| `--overdue` | ❌ No | Mark as overdue | `--overdue` |
+| `--pending` | ❌ No | Mark as pending | `--pending` |
+
+**Example:**
 ```bash
-smf run invoice-generator create \
-  --client "Tech Startup" \
-  --item "Development Phase:15000"
+python main.py mark INV-001 --paid
 ```
 
-**Milestone 3 - Final:**
-```bash
-smf run invoice-generator create \
-  --client "Tech Startup" \
-  --item "Final Delivery:5000"
-```
+---
 
-## Automation
+## Use Cases
 
-### Monthly Invoice Generation
+- **Freelance billing:** Invoice clients for consulting or contract work
+- **Small business:** Generate invoices for products or services
+- **Recurring billing:** Track monthly retainer invoices
+- **Payment tracking:** Know what's paid, pending, or overdue
+- **Record keeping:** Keep digital copies of all invoices
 
-Create `~/monthly-billing.sh`:
-```bash
-#!/bin/bash
-export PATH="$HOME/.local/bin:$PATH"
+---
 
-MONTH=$(date +%B)
-YEAR=$(date +%Y)
+## Tips & Tricks
 
-# Generate invoices for recurring clients
-smf run invoice-generator create \
-  --client "Client A" \
-  --item "Monthly Retainer:2000" \
-  --item "Hosting:${MONTH} ${YEAR}:100"
+- Use multiple `--items` for multiple line items
+- Set `--tax` to add sales tax or VAT automatically
+- Set `--due` for net-30 or net-60 payment terms
+- Export to PDF before sending to clients
 
-smf run invoice-generator create \
-  --client "Client B" \
-  --item "Support Plan:${MONTH}:500"
+---
 
-# Export all draft invoices
-for inv in ~/.smf/invoices/INV-*.json; do
-    id=$(basename $inv .json)
-    smf run invoice-generator export $id --html
-done
+## Troubleshooting
 
-# Email to clients (requires mail setup)
-echo "Monthly invoices generated" | mail -s "Invoices ${MONTH} ${YEAR}" you@example.com
-```
+| Problem | Solution |
+|---------|----------|
+| "Client name required" | Make sure to use `--client "Name"` with quotes |
+| Items format wrong | Use `"Item Name,price,quantity"` format |
+| PDF export fails | Ensure `reportlab` is installed: `pip install reportlab` |
+| Invoice not found | Check with `python main.py list` |
 
-**Cron:**
-```bash
-# First of every month
-0 9 1 * * ~/monthly-billing.sh
-```
+---
 
-### Payment Reminders
+## Requirements
 
-```bash
-#!/bin/bash
-# check-overdue.sh
+- Python 3.8+
+- OpenClaw installed
+- (Optional) `reportlab` for PDF export (`pip install reportlab`)
 
-export PATH="$HOME/.local/bin:$PATH"
+---
 
-OVERDUE=$(smf run invoice-generator list --status overdue 2>/dev/null | wc -l)
+## Support
 
-if [ "$OVERDUE" -gt 0 ]; then
-    echo "⚠️  $OVERDUE overdue invoices:"
-    smf run invoice-generator list --status overdue
-fi
-```
-
-**Weekly check:**
-```bash
-0 9 * * 1 ~/check-overdue.sh
-```
-
-## Best Practices
-
-### 1. Invoice Promptly
-
-- Bill within 24-48 hours of work completion
-- Don't wait until end of month
-
-### 2. Clear Descriptions
-
-**Good:**
-- "Website Design - 10 pages"
-- "Consulting - March 2026 - 20 hours"
-
-**Bad:**
-- "Services"
-- "Work"
-
-### 3. Net 30 Terms
-
-Standard payment terms, but adjust for:
-- New clients: Net 15 or payment upfront
-- Large projects: Milestone payments
-- Late payers: Require deposit
-
-### 4. Track Everything
-
-- Always record payments immediately
-- Note partial payments
-- Keep payment method for records
-
-### 5. Follow Up
-
-- Send reminder 7 days before due
-- Send reminder 7 days after due
-- Call after 30 days overdue
-
-### 6. Keep Backups
-
-```bash
-# Backup invoices weekly
-tar -czf ~/backups/invoices-$(date +%Y%m%d).tar.gz ~/.smf/invoices/
-
-# Keep in cloud
-dropbox upload ~/backups/invoices-*.tar.gz /backups/
-```
-
-## Pricing
-
-**Invoice Generator is a premium SMF Works skill.**
-
-This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
-
-- **Price:** $19.99/month (locked forever at signup rate)
-- **Includes:** All premium skills, updates, priority support
-- **Free alternative:** Use Wave, Invoice Ninja, or spreadsheet
-
-Subscribe at https://smf.works/subscribe
-
-## See Also
-
-- [SETUP.md](./SETUP.md) — Complete setup and configuration guide
-- `smf help` — CLI documentation
-- `smf status` — Check subscription status
-
-## License
-
-SMF Works Pro Skill — See SMF Works Terms of Service
+- 📖 [Full Documentation](https://smfworks.com/skills/invoice-generator)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

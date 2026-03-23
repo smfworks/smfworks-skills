@@ -1,326 +1,183 @@
-# OpenClaw Backup - SMF Works Pro Skill
+# OpenClaw Backup
 
-💾 **Daily backup of your OpenClaw agent with 2-day rolling retention.**
-
-## Overview
-
-OpenClaw Backup automatically backs up your OpenClaw workspace, memory, and configuration daily. Maintains a rolling 2-day history with simple one-command restore.
-
-**Schedule:** Daily at 1:00 AM (configurable)
-**Retention:** 2 days (configurable)
-**Tier:** Pro (requires SMF Works subscription)
+> Backup and restore your OpenClaw workspace, skills, and settings
 
 ---
 
-## Requirements
+## What It Does
 
-- **SMF Works Subscription:** Pro tier ($19.99/mo)
-- **Disk Space:** Sufficient space for backups (typically 10-100 MB per backup)
-- **No External APIs:** Fully local operation
-
----
-
-## What Gets Backed Up
-
-By default, the skill backs up:
-
-| Path | Contents |
-|------|----------|
-| `~/.openclaw/workspace` | Your workspace files and projects |
-| `~/.openclaw/memory` | Memory files and logs |
-| `~/.openclaw/config` | Configuration files |
-
-**Excluded by default:**
-- Log files (`*.log`)
-- Python cache (`__pycache__`)
-- Git repositories (`.git`)
-- Node modules (`node_modules`)
-- Virtual environments (`.venv`, `venv`)
+OpenClaw Backup creates complete backups of your entire OpenClaw setup — your workspace files, memory, skills, and configuration. Restore everything to a working state after a system crash, or migrate to a new machine.
 
 ---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Pro tier:**
 ```bash
-smf install openclaw-backup
+smfw install openclaw-backup
+smf login
+```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
 ```
 
 ---
 
 ## Quick Start
 
-### Step 1: Configure
+Backup your entire OpenClaw workspace:
 
 ```bash
-smf run openclaw-backup --configure
-```
-
-The wizard will ask for:
-- Backup directory location
-- Retention period (default: 2 days)
-- Additional paths to include (optional)
-
-### Step 2: Create First Backup
-
-```bash
-smf run openclaw-backup
-```
-
-### Step 3: Schedule Daily Backups
-
-```bash
-openclaw cron add \
-  --name "openclaw-backup" \
-  --schedule "0 1 * * *" \
-  --command "smf run openclaw-backup"
+python main.py backup
 ```
 
 ---
 
-## Usage
+## Commands
 
-### Create Backup
+### `backup`
 
+**What it does:** Create a full backup of your OpenClaw setup.
+
+**Usage:**
 ```bash
-smf run openclaw-backup
+python main.py backup [options]
 ```
 
-Output:
-```
-📦 Creating backup: openclaw_backup_20260324_013000
-   Destination: ~/.smf/backups/openclaw_backup_20260324_013000.tar.gz
-   ✓ Added: ~/.openclaw/workspace
-   ✓ Added: ~/.openclaw/memory
-   ✓ Added: ~/.openclaw/config
+**Options:**
 
-✅ Backup complete: openclaw_backup_20260324_013000
-   Size: 45.23 MB
-   Location: ~/.smf/backups/openclaw_backup_20260324_013000.tar.gz
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--dest` | ❌ No | Backup destination folder | `--dest ~/Backups` |
 
-🧹 Cleaning up old backups...
-✅ Removed 1 old backup(s)
-
-✅ Backup complete!
-```
-
-### List Backups
-
+**Example:**
 ```bash
-smf run openclaw-backup --list
+python main.py backup
+python main.py backup --dest ~/OpenClaw-Backups
 ```
 
-Output:
+**Output:**
 ```
-💾 Available Backups (3 total):
-
-1. openclaw_backup_20260324_013000.tar.gz
-   Created: 2026-03-24 01:30
-   Size: 45.23 MB
-   Path: ~/.smf/backups/openclaw_backup_20260324_013000.tar.gz
-
-2. openclaw_backup_20260323_013000.tar.gz
-   Created: 2026-03-23 01:30
-   Size: 44.89 MB
-   Path: ~/.smf/backups/openclaw_backup_20260323_013000.tar.gz
-```
-
-### Restore from Backup
-
-```bash
-smf run openclaw-backup --restore ~/.smf/backups/openclaw_backup_20260324_013000.tar.gz
-```
-
-Output:
-```
-📦 Restoring from: openclaw_backup_20260324_013000.tar.gz
-   Destination: ~/.openclaw_restored
-
-✅ Restore complete!
-   Files restored to: ~/.openclaw_restored
-
-To activate this restore:
-   1. Stop OpenClaw if running
-   2. Replace ~/.openclaw with restored files:
-      rm -rf ~/.openclaw && mv ~/.openclaw_restored ~/.openclaw
-   3. Restart OpenClaw
-```
-
-### Manual Cleanup
-
-```bash
-smf run openclaw-backup --cleanup
+✅ OpenClaw Backup Created!
+   ID: OPENCLAW-20260320-143052
+   Location: ~/.openclaw-backups/OPENCLAW-20260320-143052/
+   Size: 125 MB
+   Included:
+     - Workspace files
+     - Memory files
+     - Skills configuration
+     - User settings
 ```
 
 ---
 
-## Configuration
+### `list`
 
-### Configuration File
+**What it does:** Display all available backups.
 
-```
-~/.config/smf/skills/openclaw-backup/config.json
-```
-
-### Example Configuration
-
-```json
-{
-  "backup_dir": "~/.smf/backups",
-  "retention_days": 2,
-  "include_paths": [
-    "~/.openclaw/workspace",
-    "~/.openclaw/memory",
-    "~/.openclaw/config"
-  ],
-  "exclude_patterns": [
-    "*.log",
-    "__pycache__",
-    ".git",
-    "node_modules",
-    ".venv",
-    "venv"
-  ],
-  "compress": true,
-  "verify": true
-}
-```
-
-### Configuration Options
-
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `backup_dir` | No | `~/.smf/backups` | Where to store backups |
-| `retention_days` | No | `2` | How many days to keep backups |
-| `include_paths` | No | See above | Paths to backup |
-| `exclude_patterns` | No | See above | Patterns to exclude |
-| `compress` | No | `true` | Use gzip compression |
-| `verify` | No | `true` | Verify backup integrity |
-
----
-
-## Scheduling
-
-### OpenClaw Cron (Recommended)
-
+**Usage:**
 ```bash
-# Daily at 1:00 AM
-openclaw cron add \
-  --name "openclaw-backup" \
-  --schedule "0 1 * * *" \
-  --command "smf run openclaw-backup"
+python main.py list
 ```
 
-### System Cron
-
+**Example:**
 ```bash
-# Edit crontab
-crontab -e
+python main.py list
+```
 
-# Add for 1:00 AM daily
-0 1 * * * /usr/local/bin/smf run openclaw-backup
+**Output:**
+```
+📦 OpenClaw Backups:
+------------------------------------------------------------
+1. OPENCLAW-20260320-143052 | 125 MB | 2026-03-20 14:30
+2. OPENCLAW-20260319-080000 | 120 MB | 2026-03-19 08:00
+3. OPENCLAW-20260318-020000 | 118 MB | 2026-03-18 02:00
 ```
 
 ---
 
-## Restore Process
+### `restore`
 
-To restore your OpenClaw from a backup:
+**What it does:** Restore OpenClaw from a previous backup.
 
-### Step 1: Stop OpenClaw
-
+**Usage:**
 ```bash
-# If running as a service
-sudo systemctl stop openclaw
-
-# Or find and kill the process
-pkill -f openclaw
+python main.py restore [backup-id]
 ```
 
-### Step 2: Restore Files
+**Arguments:**
 
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `backup-id` | ✅ Yes | Backup ID to restore | `OPENCLAW-20260320-143052` |
+
+**Example:**
 ```bash
-# Option A: Use the skill
-smf run openclaw-backup --restore ~/.smf/backups/openclaw_backup_20260324_013000.tar.gz
-
-# Option B: Manual restore
-cd ~
-rm -rf ~/.openclaw
-tar -xzf ~/.smf/backups/openclaw_backup_20260324_013000.tar.gz
-mv openclaw_backup_*/openclaw ~/.openclaw
-```
-
-### Step 3: Restart OpenClaw
-
-```bash
-# If running as a service
-sudo systemctl start openclaw
-
-# Or start manually
-openclaw start
+python main.py restore OPENCLAW-20260320-143052
 ```
 
 ---
 
-## Backup Format
+### `config`
 
-Backups are stored as compressed tar.gz archives:
+**What it does:** Configure backup settings and destination.
 
-```
-~/.smf/backups/
-├── openclaw_backup_20260324_013000.tar.gz
-├── openclaw_backup_20260323_013000.tar.gz
-└── openclaw_backup_20260322_013000.tar.gz
+**Usage:**
+```bash
+python main.py config
 ```
 
-Archive contents:
+**Example:**
+```bash
+python main.py config
 ```
-openclaw_backup_20260324_013000/
-├── workspace/
-├── memory/
-└── config/
-```
+
+---
+
+## Use Cases
+
+- **Before updates:** Protect your setup before system upgrades
+- **Migration:** Move OpenClaw to a new computer
+- **Disaster recovery:** Restore after system crash
+- **Version control:** Keep historical snapshots of your workspace
+
+---
+
+## Tips & Tricks
+
+- Set up scheduled backups with cron for automatic protection
+- Store backups on a separate drive for true disaster recovery
+- Test restores periodically to verify your backups work
+- Use `--dest` to organize backups by location
 
 ---
 
 ## Troubleshooting
 
-### "Pro skill requires SMF Works subscription"
-
-Subscribe at [https://smf.works/subscribe](https://smf.works/subscribe) then run `smf login`.
-
-### "No space left on device"
-
-- Check disk space: `df -h`
-- Reduce retention_days in config
-- Move backup_dir to larger drive
-
-### Backup is too large
-
-- Add more exclude_patterns to config
-- Exclude large data directories
-- Use --list to see what's being backed up
-
-### "Permission denied"
-
-- Ensure you have read access to ~/.openclaw
-- Check write permissions to backup_dir
+| Problem | Solution |
+|---------|----------|
+| "Backup destination full" | Free up space or use different `--dest` |
+| "Permission denied" | Check you have write access to destination |
+| "Backup ID not found" | Check with `python main.py list` |
 
 ---
 
-## Data & Privacy
+## Requirements
 
-- **All operations are local** - No data leaves your machine
-- **Backups stored locally** - You control where they go
-- **No external APIs** - No cloud services involved
-- **Encrypted at rest** - Filesystem encryption applies
+- Python 3.8+
+- OpenClaw installed
+- Sufficient disk space for backups
 
 ---
 
 ## Support
 
-- **Documentation:** https://smfworks.com/skills/openclaw-backup
-- **Issues:** https://github.com/smfworks/smfworks-skills/issues
-
----
-
-*Powered by SMF Works | Pro Skill | Local-First*
+- 📖 [Full Documentation](https://smfworks.com/skills/openclaw-backup)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

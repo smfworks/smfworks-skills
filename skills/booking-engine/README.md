@@ -1,422 +1,256 @@
 # Booking Engine
 
-Create booking pages, manage your availability, and accept appointments. Perfect for consultants, coaches, service providers, and anyone who needs to schedule time with clients.
+> Appointment booking system for service-based businesses
 
-## Features
+---
 
-- ✅ **Booking Pages** — Create multiple service types
-- ✅ **Availability Management** — Set weekly schedules
-- ✅ **Duration & Buffer** — Configure appointment length and gaps
-- ✅ **HTTP Server** — Built-in booking website
-- ✅ **Appointment Management** — View, cancel, complete
-- ✅ **Conflict Prevention** — Automatic slot blocking
-- ✅ **Local Storage** — All data stays on your machine
+## What It Does
+
+Booking Engine is a complete appointment scheduling system that lets small businesses manage bookings, services, and availability without third-party platforms or commissions. It runs entirely on your machine with a simple JSON-based backend — no internet required after setup.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-# Install SMF CLI (if not already)
-curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
-
-# Login (Pro skill requires subscription)
-smf login
-
-# Install the skill
-smf install booking-engine
+smfw install booking-engine
 ```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
+
+---
 
 ## Quick Start
 
-### 1. Create a Booking Page
+Book your first appointment in seconds:
 
 ```bash
-smf run booking-engine create
-# Service name: Initial Consultation
-# Duration: 60
-# Buffer: 15
+python main.py book "Haircut" "John Smith" "2026-03-25" "10:00"
 ```
 
-### 2. Set Your Availability
+---
 
+## Commands
+
+### `book`
+
+**What it does:** Create a new appointment booking.
+
+**Usage:**
 ```bash
-smf run booking-engine availability BOOK-ABC123 --add "monday,tuesday,wednesday:09:00-17:00"
-smf run booking-engine availability BOOK-ABC123 --add "thursday,friday:10:00-16:00"
+python main.py book [service] [client] [date] [time]
 ```
 
-### 3. Start the Server
+**Arguments:**
 
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `service` | ✅ Yes | Name of the service | `Haircut` |
+| `client` | ✅ Yes | Client's name | `Jane Doe` |
+| `date` | ✅ Yes | Date in YYYY-MM-DD format | `2026-03-25` |
+| `time` | ✅ Yes | Time in HH:MM format | `14:00` |
+
+**Example:**
 ```bash
-smf run booking-engine serve --port 8080
+python main.py book "Haircut" "Jane Doe" "2026-03-25" "10:00"
+python main.py book "Massage" "John Smith" "2026-03-26" "15:30"
 ```
 
-### 4. Share the Link
+**Output:**
+```
+✅ Booked: Jane Doe for Haircut on 2026-03-25 at 10:00
+   Booking ID: BOOK-20260325-001
+```
 
-`http://localhost:8080/BOOK-ABC123`
+---
 
-Clients can book directly. Appointments are saved automatically.
+### `list`
 
-### 5. View Appointments
+**What it does:** Display all bookings, optionally filtered.
 
+**Usage:**
 ```bash
-smf run booking-engine appointments BOOK-ABC123
+python main.py list [date]
 ```
 
-## Usage
+**Arguments:**
 
-### Creating Booking Pages
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `date` | ❌ No | Filter by date (YYYY-MM-DD) | `2026-03-25` |
 
-**Interactive:**
+**Example:**
 ```bash
-smf run booking-engine create
+python main.py list
+python main.py list 2026-03-25
 ```
 
-**Quick mode:**
+**Output:**
+```
+📅 Bookings for 2026-03-25:
+------------------------------------------------------------
+1. BOOK-20260325-001 | 10:00 | Jane Doe | Haircut | confirmed
+2. BOOK-20260325-002 | 14:00 | John Smith | Massage | confirmed
+```
+
+---
+
+### `cancel`
+
+**What it does:** Cancel an existing booking.
+
+**Usage:**
 ```bash
-smf run booking-engine create --name "Consultation" --duration 60 --buffer 15 --location "Video Call"
+python main.py cancel [booking-id]
 ```
 
-**Parameters:**
-- `name` — Service name (required)
-- `duration` — Length in minutes (default: 60)
-- `buffer` — Gap between appointments (default: 15)
-- `location` — Where it happens (optional)
-- `description` — Service description (optional)
+**Arguments:**
 
-### Setting Availability
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `booking-id` | ✅ Yes | The booking ID to cancel | `BOOK-20260325-001` |
 
-**Add availability:**
+**Example:**
 ```bash
-# Single day
-smf run booking-engine availability BOOK-ABC --add "monday:09:00-17:00"
-
-# Multiple days
-smf run booking-engine availability BOOK-ABC --add "monday,wednesday,friday:09:00-17:00"
-
-# Different times
-smf run booking-engine availability BOOK-ABC --add "monday:09:00-12:00"
-smf run booking-engine availability BOOK-ABC --add "monday:14:00-17:00"
+python main.py cancel BOOK-20260325-001
 ```
 
-**View availability:**
+**Output:**
+```
+✅ Cancelled: BOOK-20260325-001
+```
+
+---
+
+### `services`
+
+**What it does:** List all available services.
+
+**Usage:**
 ```bash
-smf run booking-engine availability BOOK-ABC
+python main.py services
 ```
 
-**Remove slot:**
+**Example:**
 ```bash
-smf run booking-engine availability BOOK-ABC --remove monday --index 0
+python main.py services
 ```
 
-### Serving Booking Pages
+**Output:**
+```
+✂️ Available Services:
+------------------------------------------------------------
+1. Haircut        | 30 min  | $35
+2. Massage        | 60 min  | $65
+3. Consultation   | 15 min  | Free
+```
 
-**Start server:**
+---
+
+### `availability`
+
+**What it does:** Check available time slots for a given date.
+
+**Usage:**
 ```bash
-smf run booking-engine serve
-# Serves on http://localhost:8080/
+python main.py availability [date]
 ```
 
-**Custom port:**
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `date` | ✅ Yes | Date to check (YYYY-MM-DD) | `2026-03-25` |
+
+**Example:**
 ```bash
-smf run booking-engine serve --port 3000
+python main.py availability 2026-03-25
 ```
 
-**Access:**
-- Main page: `http://localhost:8080/` (lists all booking pages)
-- Specific page: `http://localhost:8080/BOOK-ABC123`
+**Output:**
+```
+🗓️ Available slots for 2026-03-25:
+09:00, 09:30, 10:30, 11:00, 13:00, 14:30...
+```
 
-**Stop server:**
-- Press `Ctrl+C`
+---
 
-### Managing Appointments
+### `configure`
 
-**List appointments:**
+**What it does:** Run the interactive setup wizard to configure business settings.
+
+**Usage:**
 ```bash
-# All appointments
-smf run booking-engine appointments
-
-# For specific booking page
-smf run booking-engine appointments BOOK-ABC123
-
-# For specific date
-smf run booking-engine appointments BOOK-ABC123 --date 2026-03-25
+python main.py configure
 ```
 
-**Cancel appointment:**
+**Example:**
 ```bash
-smf run booking-engine cancel APPT-XYZ789
+python main.py configure
 ```
 
-**Mark completed:**
-```bash
-smf run booking-engine complete APPT-XYZ789
+**Output:**
+```
+💼 Booking Engine Configuration
+==================================================
+
+Business Name: Your Business Name
+Working Hours: 09:00 - 17:00
+Buffer Between Bookings: 15 minutes
+
+✅ Configuration saved!
 ```
 
-### Viewing Booking Pages
+---
 
-**List all:**
-```bash
-smf run booking-engine list
-```
+## Use Cases
 
-**Show details:**
-```bash
-smf run booking-engine show BOOK-ABC123
-```
+- **Hair salon:** Let clients book haircut, color, or styling appointments
+- **Consulting:** Schedule client consultations with time blocks
+- **Coaching:** Manage one-on-one coaching session bookings
+- **Personal training:** Book gym sessions with availability tracking
+- **Tutoring:** Schedule tutoring appointments with students
 
-## Booking Page Examples
+---
 
-### Consultation Call
+## Tips & Tricks
 
-```bash
-smf run booking-engine create --name "Free Consultation" --duration 30 --buffer 10 --location "Zoom"
-smf run booking-engine availability BOOK-XXX --add "monday,friday:09:00-12:00"
-```
+- Use `--date` flag to pre-fill common booking dates in scripts
+- Combine with cron jobs to send daily booking reminders
+- Export bookings to CSV for reporting: `python main.py list > bookings.csv`
+- Set up a shared calendar file for household scheduling
 
-### Coaching Session
+---
 
-```bash
-smf run booking-engine create --name "Coaching Session" --duration 60 --buffer 15 --location "Office"
-smf run booking-engine availability BOOK-XXX --add "tuesday,thursday:14:00-18:00"
-```
+## Troubleshooting
 
-### Office Hours
+| Problem | Solution |
+|---------|----------|
+| "Service not found" | Check your services config or use exact service name |
+| "Time slot not available" | Try a different time or check existing bookings |
+| "Invalid date format" | Use exactly YYYY-MM-DD (e.g., 2026-03-25) |
+| No bookings showing | Run `python main.py list` without a date argument |
 
-```bash
-smf run booking-engine create --name "Office Hours" --duration 30 --buffer 5 --location "Room 301"
-smf run booking-engine availability BOOK-XXX --add "wednesday:13:00-17:00"
-```
+---
 
-## Storage Structure
+## Requirements
 
-```
-~/.smf/
-├── bookings/
-│   ├── BOOK-ABC123.json       # Booking page definition
-│   └── BOOK-DEF456.json
-└── appointments/
-    ├── APPT-XYZ789.json       # Individual appointment
-    └── ...
-```
+- Python 3.8+
+- OpenClaw installed
+- No external dependencies (uses built-in `json` module)
 
-### Booking JSON Format
+---
 
-```json
-{
-  "id": "BOOK-ABC123",
-  "name": "Consultation",
-  "description": "Initial meeting",
-  "duration": 60,
-  "buffer_minutes": 15,
-  "location": "Zoom",
-  "availability": {
-    "monday": [
-      {"start": "09:00", "end": "17:00", "start_mins": 540, "end_mins": 1020}
-    ]
-  },
-  "created_at": "2026-03-20T14:30:00",
-  "status": "active",
-  "timezone": "America/New_York"
-}
-```
+## Support
 
-### Appointment JSON Format
-
-```json
-{
-  "id": "APPT-XYZ789",
-  "booking_id": "BOOK-ABC123",
-  "booking_name": "Consultation",
-  "date": "2026-03-25",
-  "start_time": "14:00",
-  "end_time": "15:00",
-  "duration": 60,
-  "name": "John Smith",
-  "email": "john@example.com",
-  "notes": "First time client",
-  "status": "confirmed",
-  "created_at": "2026-03-20T10:00:00",
-  "location": "Zoom"
-}
-```
-
-## How It Works
-
-### Slot Generation
-
-1. **Set availability** — "Monday 9 AM - 5 PM"
-2. **Define duration** — 60 minute appointments
-3. **Add buffer** — 15 minutes between appointments
-4. **Generate slots** — System creates 75-minute blocks
-5. **Check conflicts** — Booked slots are automatically hidden
-
-### Booking Flow
-
-1. **Client visits** booking page URL
-2. **Selects date** from calendar
-3. **Sees available slots** for that date
-4. **Chooses time** and enters details
-5. **Submits** — Appointment saved
-6. **Confirmation** shown to client
-
-### Conflict Prevention
-
-The system automatically:
-- ✅ Blocks booked slots
-- ✅ Respects buffer time
-- ✅ Prevents double-booking
-- ✅ Handles cancellations
-
-## Workflows
-
-### Consultant Schedule
-
-```bash
-# Create booking page
-smf run booking-engine create --name "Strategy Session" --duration 90 --buffer 30
-
-# Set availability (Tues/Thurs afternoons)
-smf run booking-engine availability BOOK-XXX --add "tuesday,thursday:13:00-17:00"
-
-# Start server
-smf run booking-engine serve
-
-# Check morning appointments
-smf run booking-engine appointments BOOK-XXX --date $(date +%Y-%m-%d)
-```
-
-### Team Office Hours
-
-```bash
-# Create multiple booking pages
-smf run booking-engine create --name "CEO Office Hours" --duration 30 --buffer 10
-smf run booking-engine create --name "CTO Office Hours" --duration 30 --buffer 10
-
-# Different availability
-smf run booking-engine availability BOOK-CEO --add "friday:14:00-16:00"
-smf run booking-engine availability BOOK-CTO --add "wednesday:10:00-12:00"
-
-# Serve all on one port
-smf run booking-engine serve --port 8080
-```
-
-### Class Booking
-
-```bash
-# Yoga class
-smf run booking-engine create --name "Yoga Class" --duration 60 --buffer 15 --location "Studio A"
-smf run booking-engine availability BOOK-XXX --add "monday,wednesday,friday:07:00-08:00"
-
-# 10 spots per class (manual limit tracking)
-```
-
-## Best Practices
-
-### 1. Set Realistic Availability
-
-**Don't:**
-- Overbook your calendar
-- Set 24/7 availability
-- Forget lunch breaks
-
-**Do:**
-- Leave buffer time
-- Block focus time
-- Set realistic limits
-
-### 2. Clear Service Names
-
-**Good:**
-- "Free 30-Minute Consultation"
-- "1-Hour Strategy Session"
-- "Quick Check-in Call"
-
-**Bad:**
-- "Meeting"
-- "Call"
-
-### 3. Include Buffer Time
-
-**Recommended:**
-- Back-to-back meetings: 15 min buffer
-- Client calls: 5-10 min buffer
-- Travel time: Add to buffer
-
-### 4. Set Expectations
-
-**In description:**
-- What's included
-- Preparation needed
-- Cancellation policy
-
-### 5. Regular Reviews
-
-**Weekly:**
-```bash
-# Check upcoming appointments
-smf run booking-engine appointments
-
-# Review cancellations
-smf run booking-engine appointments BOOK-XXX --status cancelled
-```
-
-### 6. Backup Appointments
-
-```bash
-# Weekly backup
-tar -czf ~/backups/bookings-$(date +%Y%m%d).tar.gz ~/.smf/bookings/ ~/.smf/appointments/
-```
-
-## Integration Ideas
-
-### With Email Notifications
-
-```bash
-#!/bin/bash
-# check-appointments.sh
-
-export PATH="$HOME/.local/bin:$PATH"
-
-TODAY=$(date +%Y-%m-%d)
-APPOINTMENTS=$(smf run booking-engine appointments --date $TODAY 2>/dev/null)
-
-if [ -n "$APPOINTMENTS" ]; then
-    echo "Today's appointments:" | mail -s "Daily Schedule" you@example.com
-fi
-```
-
-### With Calendar Sync
-
-```bash
-# Export appointments to CSV
-# Import to Google Calendar
-smf run booking-engine appointments BOOK-XXX > appointments.txt
-```
-
-### With CRM
-
-```bash
-# When client books, add to CRM
-# (Webhook or script integration)
-```
-
-## Pricing
-
-**Booking Engine is a premium SMF Works skill.**
-
-This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
-
-- **Price:** $19.99/month (locked forever at signup rate)
-- **Includes:** All premium skills, updates, priority support
-- **Free alternative:** Use Calendly, Acuity, or Google Calendar
-
-Subscribe at https://smf.works/subscribe
-
-## See Also
-
-- [SETUP.md](./SETUP.md) — Complete setup and configuration guide
-- `smf help` — CLI documentation
-- `smf status` — Check subscription status
-
-## License
-
-SMF Works Pro Skill — See SMF Works Terms of Service
+- 📖 [Full Documentation](https://smfworks.com/skills/booking-engine)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

@@ -1,103 +1,190 @@
 # Image Resizer
 
-An image processing skill for OpenClaw. Resize, compress, and convert images.
+> Resize images for web, thumbnails, social media, and email — batch process entire folders
 
-## Features
+---
 
-- **Resize Images**: Scale images by width/height with aspect ratio preservation
-- **Compress Images**: Reduce file size with quality adjustment
-- **Format Conversion**: Convert between image formats
-- **Batch Processing**: Resize entire directories of images
-- **Image Information**: Get image metadata
+## What It Does
+
+Image Resizer quickly reduces image file sizes for web, email, or social media. Resize by exact dimensions, scale by percentage, or batch process entire folders of images. Supports JPG, PNG, and WebP formats with quality control.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-pip install Pillow
+smfw install image-resizer
 ```
 
-## Usage
-
-### Resize Image
+**Or clone directly:**
 ```bash
-# Resize to specific dimensions
-python main.py resize input.jpg output.jpg 800 600
-
-# Resize by width (maintains aspect ratio)
-python main.py resize input.jpg output.jpg 800
-
-# Resize by height (maintains aspect ratio)
-python main.py resize input.jpg output.jpg 0 600
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
 ```
 
-### Compress Image
-```bash
-python main.py compress input.jpg output.jpg 85
-```
-Quality range: 1-100 (higher = better quality, larger file)
+---
 
-### Convert Format
-```bash
-python main.py convert input.png output.jpg
-```
+## Quick Start
 
-### Batch Resize
-```bash
-python main.py batch-resize ./input/ ./output/ 800
-```
-
-### Get Image Info
-```bash
-python main.py info image.jpg
-```
-
-## Input Validation Limits
-
-| Parameter | Limit |
-|-----------|-------|
-| Maximum file size | 100 MB |
-| Maximum dimensions | 10,000 x 10,000 pixels |
-| Maximum output dimensions | 8,000 x 8,000 pixels |
-| Maximum batch files | 100 files |
-| Allowed extensions | .jpg, .jpeg, .png, .gif, .bmp, .tiff, .webp, .tga, .ico |
-| Quality range | 1-100 |
-
-## Security Considerations
-
-- **Path Traversal Protection**: Blocks `..` sequences in paths
-- **File Extension Validation**: Only processes allowed image formats
-- **File Size Limits**: Prevents processing of oversized files
-- **Dimension Validation**: Prevents memory exhaustion from huge images
-- **Safe Filename Handling**: Sanitizes output filenames
-
-## Error Handling
-
-Errors are categorized:
-- **ImportError**: Pillow not installed
-- **OSError**: File system errors
-- **ValueError**: Invalid dimensions or parameters
-- **PermissionError**: Insufficient file permissions
-
-## Known Limitations
-
-- RGBA to JPEG conversion adds white background
-- Maximum 100 files per batch operation
-- Large images (>10,000px) are rejected
-- Limited to PIL-supported formats
-- Memory usage scales with image size
-
-## Examples
+Resize a single image to web-friendly dimensions:
 
 ```bash
-# Resize for web
-python main.py resize photo.jpg photo-web.jpg 1200
-
-# Compress for sharing
-python main.py compress photo.jpg photo-compact.jpg 75
-
-# Convert PNG to JPEG
-python main.py convert screenshot.png screenshot.jpg
-
-# Batch resize all images
-python main.py batch-resize ./photos/ ./thumbnails/ 200
+python main.py resize photo.jpg --width 800 --output small.jpg
 ```
+
+---
+
+## Commands
+
+### `resize`
+
+**What it does:** Resize a single image file.
+
+**Usage:**
+```bash
+python main.py resize [input-file] [options]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `input-file` | ✅ Yes | Image file to resize | `photo.jpg` |
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--width` | ❌ No | Target width in pixels | `--width 800` |
+| `--height` | ❌ No | Target height in pixels | `--height 600` |
+| `--output` | ❌ No | Output file path | `--output small.jpg` |
+| `--quality` | ❌ No | JPEG quality 1-100 (default: 85) | `--quality 75` |
+
+**Example:**
+```bash
+python main.py resize photo.jpg --width 800 --output small.jpg
+python main.py resize photo.jpg --height 600 --output thumb.jpg
+python main.py resize photo.jpg --width 800 --height 600 --output exact.jpg
+python main.py resize photo.jpg --width 1200 --quality 70
+```
+
+**Output:**
+```
+✅ Resized: photo.jpg → small.jpg
+   Original: 4032x3024 (3.2 MB)
+   New size: 800x600 (245 KB)
+   Reduction: 92%
+```
+
+---
+
+### `batch`
+
+**What it does:** Resize multiple images at once.
+
+**Usage:**
+```bash
+python main.py batch [pattern] [options]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `pattern` | ✅ Yes | File pattern (use wildcards) | `~/Photos/*.jpg` |
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--width` | ❌ No | Target width | `--width 1200` |
+| `--height` | ❌ No | Target height | `--height 800` |
+| `--output` | ❌ No | Output folder | `--output ~/Small/` |
+| `--quality` | ❌ No | JPEG quality 1-100 | `--quality 75` |
+
+**Example:**
+```bash
+python main.py batch ~/Downloads/*.jpg --width 1200 --output ~/Small/
+python main.py batch "~/Photos/*.png" --height 600 --output ~/Thumbs/
+```
+
+---
+
+### `info`
+
+**What it does:** Display image dimensions, format, and file size.
+
+**Usage:**
+```bash
+python main.py info [image-file]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `image-file` | ✅ Yes | Image to inspect | `photo.jpg` |
+
+**Example:**
+```bash
+python main.py info photo.jpg
+```
+
+**Output:**
+```
+📷 Image Info: photo.jpg
+   Dimensions: 4032 x 3024 pixels
+   Format: JPEG
+   File size: 3.2 MB
+   Mode: RGB
+```
+
+---
+
+## Use Cases
+
+- **Web optimization:** Reduce image sizes for faster page loads
+- **Email attachments:** Resize photos before attaching to emails
+- **Social media:** Prepare images to exact specs for platforms
+- **Thumbnails:** Create smaller versions for galleries
+- **Batch processing:** Resize entire event photo folders at once
+
+---
+
+## Tips & Tricks
+
+- Use `--width` alone to scale proportionally by width
+- Combine `--width` and `--height` for exact dimensions (may crop)
+- Lower `--quality` values = smaller files but reduced quality
+- Batch with wildcards: `*.jpg`, `*.png`, or specific folders
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "Unsupported format" | Ensure file is JPG, PNG, or WebP |
+| "PIL not installed" | Run `pip install Pillow` |
+| Batch only processes one file | Use quotes around the pattern: `"~/Photos/*.jpg"` |
+| Output file already exists | Use `--output` with a new filename |
+
+---
+
+## Requirements
+
+- Python 3.8+
+- OpenClaw installed
+- Pillow library (`pip install Pillow`)
+
+---
+
+## Support
+
+- 📖 [Full Documentation](https://smfworks.com/skills/image-resizer)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

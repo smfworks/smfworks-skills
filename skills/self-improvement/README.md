@@ -1,434 +1,241 @@
-# Self-Improvement Skill
+# Self-Improvement
 
-Log errors, learnings, and insights for continuous improvement. Coding agents can process these into fixes, and important items get promoted to project memory.
+> Log errors, learnings, and insights for continuous improvement — coding agents process these into fixes
 
-## Features
+---
 
-- ✅ **Error Logging** — Capture errors with context, severity, and resolution
-- ✅ **Learning Logging** — Document insights, patterns, and best practices
-- ✅ **Insight Logging** — General observations and improvements
-- ✅ **Searchable Database** — Find past errors and solutions
-- ✅ **Promotion to Memory** — Important items become project knowledge
-- ✅ **Statistics** — Track improvement over time
-- ✅ **Markdown Export** — Human-readable logs for review
+## What It Does
+
+Self-Improvement builds a knowledge base of your errors, learnings, and insights over time. Log what goes wrong, what you learn, and what insights you gain. Coding agents can process these logs to identify patterns and promote important items to your project memory.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Pro tier:**
 ```bash
-# Install SMF CLI (if not already)
-curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
-
-# Login (Pro skill requires subscription)
+smfw install self-improvement
 smf login
-
-# Install the skill
-smf install self-improvement
 ```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
+
+---
 
 ## Quick Start
 
-### Log an Error
+Log an error you just encountered:
 
 ```bash
-# Interactive
-smf run self-improvement log-error
-
-# Quick log
-smf run self-improvement log-error "File not found" \
-  --context "Reading config.json during startup" \
-  --severity high \
-  --tags "file-io,config" \
-  --resolution "Added file existence check" \
-  --prevention "Always validate file paths before reading"
+smf run self-improvement log-error "File not found" --context "Reading config.json"
 ```
 
-### Log a Learning
+---
 
+## Commands
+
+### `log-error`
+
+**What it does:** Log an error with context, severity, and resolution.
+
+**Usage:**
 ```bash
-# Interactive
-smf run self-improvement log-learning
-
-# Quick log
-smf run self-improvement log-learning "Always validate JSON before parsing" \
-  --category best-practice \
-  --context "Crashed on malformed config" \
-  --tags "json,validation"
+smf run self-improvement log-error [description] [options]
 ```
 
-### View and Search
+**Arguments:**
 
-```bash
-# List all items
-smf run self-improvement list
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `description` | ✅ Yes | Error description | `File not found` |
 
-# List only errors
-smf run self-improvement list --type error
+**Options:**
 
-# List by category
-smf run self-improvement list --category best-practice
-
-# Search
-smf run self-improvement search "config"
-
-# Show details
-smf run self-improvement show ERR-20260320-ABC123
-```
-
-### Promote to Memory
-
-```bash
-# Promote important learning to project memory
-smf run self-improvement promote LRN-20260320-DEF456 \
-  --notes "Critical for all file operations"
-```
-
-## Usage
-
-### Error Logging
-
-**When to log:**
-- When you fix a bug
-- When you encounter a new error type
-- When you spend > 30 min debugging something
-
-**Structure:**
-```
-Description: What went wrong
-Context: What were you doing
-Severity: low/medium/high/critical
-Resolution: How you fixed it
-Prevention: How to prevent in future
-Tags: Categories for search
-```
-
-**Example workflow:**
-```bash
-# Encounter error
-cat config.json | jq
-# Error: parse error: Invalid numeric literal
-
-# Log it
-smf run self-improvement log-error "JSON parse error" \
-  --context "Reading user config" \
-  --severity medium \
-  --tags "json,config" \
-  --resolution "Added try/except around json.loads" \
-  --prevention "Validate JSON with linter before deployment"
-
-# Later, find similar errors
-smf run self-improvement search "json"
-```
-
-### Learning Logging
-
-**When to log:**
-- When you discover a better way to do something
-- When you identify a pattern
-- When you learn from a mistake
-
-**Categories:**
-- `best-practice` — Recommended approaches
-- `pattern` — Recurring solutions
-- `anti-pattern` — Things to avoid
-- `optimization` — Performance improvements
-- `architecture` — Design decisions
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--context` | ❌ No | What were you doing | `--context "Reading config"` |
+| `--severity` | ❌ No | low/medium/high/critical | `--severity high` |
+| `--tags` | ❌ No | Comma-separated tags | `--tags "file-io,config"` |
+| `--resolution` | ❌ No | How you fixed it | `--resolution "Added check"` |
+| `--prevention` | ❌ No | How to prevent | `--prevention "Validate path"` |
 
 **Example:**
 ```bash
-smf run self-improvement log-learning "Use pathlib instead of os.path" \
-  --category best-practice \
-  --context "Path operations cleaner with pathlib" \
-  --tags "python,file-io"
+smf run self-improvement log-error "JSON parse error" --context "API response" --severity medium --tags "json,api"
 ```
-
-### Searching the Knowledge Base
-
-```bash
-# Search all items
-smf run self-improvement search "config"
-
-# Search only errors
-smf run self-improvement search "database" --type error
-
-# Search only learnings
-smf run self-improvement search "optimization" --type learning
-```
-
-### Statistics
-
-```bash
-smf run self-improvement stats
-```
-
-Output:
-```
-📊 Self-Improvement Statistics
-==================================================
-
-📈 Totals:
-   Errors: 47 (12 open, 35 resolved)
-   Learnings: 23
-   Insights: 8
-
-📅 This Week:
-   New errors: 3
-   New learnings: 5
-
-🔥 Errors by Severity:
-   🔴 critical: 2
-   🟠 high: 8
-   🟡 medium: 25
-   🟢 low: 12
-
-💡 Learnings by Category:
-   • best-practice: 12
-   • pattern: 5
-   • optimization: 4
-   • architecture: 2
-```
-
-## File Structure
-
-```
-~/.smf/improvement/
-├── errors/
-│   ├── ERR-20260320-ABC123.json
-│   ├── errors-2026-03-20.md
-│   └── ...
-├── learnings/
-│   ├── LRN-20260320-DEF456.json
-│   ├── learnings-2026-03-20.md
-│   └── ...
-├── insights/
-│   ├── INS-20260320-GHI789.json
-│   └── ...
-└── promoted.md  # Project memory file
-```
-
-### JSON Format (for agents)
-
-**Error:**
-```json
-{
-  "id": "ERR-20260320-ABC123",
-  "type": "error",
-  "description": "File not found",
-  "context": "Reading config.json",
-  "severity": "high",
-  "tags": ["file-io", "config"],
-  "resolution": "Added file existence check",
-  "prevention": "Always validate paths",
-  "status": "resolved",
-  "occurrences": 1,
-  "created_at": "2026-03-20T14:30:00",
-  "updated_at": "2026-03-20T15:00:00",
-  "resolved_at": "2026-03-20T15:00:00"
-}
-```
-
-**Learning:**
-```json
-{
-  "id": "LRN-20260320-DEF456",
-  "type": "learning",
-  "insight": "Use pathlib instead of os.path",
-  "category": "best-practice",
-  "context": "Path operations",
-  "tags": ["python", "file-io"],
-  "related_errors": ["ERR-20260320-ABC123"],
-  "promoted": true,
-  "created_at": "2026-03-20T14:30:00"
-}
-```
-
-### Markdown Format (for humans)
-
-**Daily error log:**
-```markdown
-## ERR-20260320-ABC123
-
-**Error:** File not found
-
-**Context:** Reading config.json during startup
-
-**Severity:** high
-
-**Tags:** file-io, config
-
-**Timestamp:** 2026-03-20T14:30:00
 
 ---
+
+### `log-learning`
+
+**What it does:** Log an insight or best practice you discovered.
+
+**Usage:**
+```bash
+smf run self-improvement log-learning [insight] [options]
 ```
 
-## Promotion to Memory
+**Arguments:**
 
-**When to promote:**
-- Error pattern affects multiple areas
-- Learning is fundamental to project
-- Insight changes how team works
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `insight` | ✅ Yes | What you learned | `Validate JSON first` |
 
-**Memory file format:**
-```markdown
-## ERR-20260320-ABC123 - Error Pattern
+**Options:**
 
-**Error:** File not found
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--category` | ❌ No | Category type | `--category best-practice` |
+| `--context` | ❌ No | When does this apply | `--context "API calls"` |
+| `--tags` | ❌ No | Comma-separated tags | `--tags "python,json"` |
 
-**Context:** Reading config.json
+**Categories:** `best-practice`, `pattern`, `anti-pattern`, `optimization`, `architecture`, `other`
 
-**Resolution:** Added file existence check
-
-**Prevention:** Always validate file paths before reading
-
-**Tags:** file-io, config
-
-**Promoted:** 2026-03-20T16:00:00
-**Notes:** Critical for all file operations
+**Example:**
+```bash
+smf run self-improvement log-learning "Use pathlib instead of os.path" --category best-practice
+```
 
 ---
-```
 
-## Integration with Coding Agents
+### `list`
 
-### For Agent Prompts
+**What it does:** List all logged items with optional filters.
 
-```
-Before coding, search for relevant errors:
-smf run self-improvement search "database"
-smf run self-improvement search "api"
-
-After fixing an error, log it:
-smf run self-improvement log-error "..."
-
-After learning something, log it:
-smf run self-improvement log-learning "..."
-```
-
-### Processing with Scripts
-
+**Usage:**
 ```bash
-# Find all unresolved critical errors
-smf run self-improvement list --type error --status open | grep critical
-
-# Find learnings related to specific error
-smf run self-improvement list --type learning | grep "ERR-20260320-ABC123"
-
-# Generate report
-smf run self-improvement stats > improvement-report.txt
+smf run self-improvement list [options]
 ```
 
-## Workflows
+**Options:**
 
-### Daily Workflow
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--type` | ❌ No | Filter by type | `--type error` |
+| `--status` | ❌ No | Filter by status | `--status open` |
+| `--category` | ❌ No | Filter by category | `--category best-practice` |
 
+**Example:**
 ```bash
-# Morning - check for patterns
-smf run self-improvement stats
-
-# During work - log errors as they happen
-smf run self-improvement log-error "..."
-
-# End of day - log learnings
-smf run self-improvement log-learning "..."
-```
-
-### Weekly Review
-
-```bash
-# Review new items
-smf run self-improvement list --type error | head -10
-smf run self-improvement list --type learning | head -10
-
-# Promote important items
-smf run self-improvement promote ERR-...
-smf run self-improvement promote LRN-...
-
-# Check promoted memory
-cat ~/.smf/improvement/promoted.md
-```
-
-### Sprint Retrospective
-
-```bash
-# Error analysis
-smf run self-improvement stats
-
-# Pattern identification
-smf run self-improvement list --category anti-pattern
-
-# Best practice adoption
+smf run self-improvement list
+smf run self-improvement list --type error
 smf run self-improvement list --category best-practice
 ```
 
-## Best Practices
+---
 
-### Error Logging
+### `search`
 
-1. **Log immediately** — While context is fresh
-2. **Be specific** — "File not found" vs "Error"
-3. **Include context** — What were you doing?
-4. **Document resolution** — How did you fix it?
-5. **Add prevention** — How to avoid in future?
+**What it does:** Search all logged items by keyword.
 
-### Learning Logging
+**Usage:**
+```bash
+smf run self-improvement search [keyword]
+```
 
-1. **Log insights** — Don't let them fade
-2. **Connect to errors** — Link learnings to causes
-3. **Categorize** — Helps with retrieval
-4. **Be actionable** — Clear what to do differently
+**Arguments:**
 
-### Search
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `keyword` | ✅ Yes | Search term | `json` |
 
-1. **Use tags** — Consistent taxonomy
-2. **Check before coding** — Avoid repeat errors
-3. **Review weekly** — Stay aware of patterns
+**Example:**
+```bash
+smf run self-improvement search "config"
+```
 
-### Promotion
+---
 
-1. **Be selective** — Only promote important items
-2. **Add context** — Notes about why it matters
-3. **Review memory** — Monthly cleanup
+### `show`
 
-## Tags Taxonomy
+**What it does:** Display full details of a specific item.
 
-### Error Tags
+**Usage:**
+```bash
+smf run self-improvement show [item-id]
+```
 
-- `file-io` — File operations
-- `network` — Network requests
-- `config` — Configuration issues
-- `logic` — Business logic errors
-- `syntax` — Syntax mistakes
-- `runtime` — Runtime exceptions
-- `database` — Database issues
-- `api` — API/integration errors
+**Example:**
+```bash
+smf run self-improvement show ERR-20260320-ABC123
+```
 
-### Learning Tags
+---
 
-- `python` — Python-specific
-- `javascript` — JS-specific
-- `architecture` — System design
-- `testing` — Test strategies
-- `performance` — Optimization
-- `security` — Security practices
-- `devops` — Deployment/infrastructure
+### `promote`
 
-## Pricing
+**What it does:** Promote an important item to your project memory.
 
-**Self-Improvement Skill is a premium SMF Works skill.**
+**Usage:**
+```bash
+smf run self-improvement promote [item-id]
+```
 
-This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
+**Example:**
+```bash
+smf run self-improvement promote LRN-20260320-DEF456
+```
 
-- **Price:** $19.99/month (locked forever at signup rate)
-- **Includes:** All premium skills, updates, priority support
-- **Free alternative:** Manual notes in text files
+---
 
-Subscribe at https://smf.works/subscribe
+### `stats`
 
-## See Also
+**What it does:** Display improvement statistics.
 
-- [SETUP.md](./SETUP.md) — Complete setup guide
-- `smf help` — CLI documentation
-- `smf status` — Check subscription
+**Usage:**
+```bash
+smf run self-improvement stats
+```
 
-## License
+---
 
-SMF Works Pro Skill — See SMF Works Terms of Service
+## Use Cases
+
+- **Error tracking:** Log bugs and their solutions for future reference
+- **Learning journal:** Record insights and best practices
+- **Knowledge base:** Build a searchable database of solutions
+- **Agent training:** Help coding agents avoid past mistakes
+- **Retrospectives:** Provide data for team retrospectives
+
+---
+
+## Tips & Tricks
+
+- Log errors immediately while context is fresh
+- Use tags consistently for better search results
+- Promote important learnings to project memory
+- Review weekly to identify patterns
+- Use categories to organize learnings
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "Subscription required" | Run `smf login` to activate Pro access |
+| "Item not found" | Check the item ID from `list` output |
+| Empty search results | Try different keywords or check spelling |
+
+---
+
+## Requirements
+
+- Python 3.8+
+- OpenClaw installed
+- Pro subscription
+
+---
+
+## Support
+
+- 📖 [Full Documentation](https://smfworks.com/skills/self-improvement)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

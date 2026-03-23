@@ -1,107 +1,229 @@
 # System Monitor
 
-A system health monitoring skill for OpenClaw. Monitor disk, memory, CPU, and find large files.
+> Monitor disk space, memory, CPU, and system health — find large files consuming space
 
-## Features
+---
 
-- **Disk Usage**: Monitor disk space usage
-- **Memory Info**: Check RAM utilization
-- **CPU Monitor**: View CPU usage and frequency
-- **System Info**: Get platform information
-- **Health Check**: Overall system health status
-- **Large Files**: Find space-consuming files
+## What It Does
+
+System Monitor checks your computer's health — disk usage, RAM utilization, CPU load, and identifies large files that are eating up storage. Essential for keeping your system running smoothly and knowing when it's time to clean up.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-pip install psutil
+smfw install system-monitor
 ```
 
-## Usage
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
 
-### Check Disk Usage
+---
+
+## Quick Start
+
+Check your system health:
+
+```bash
+python main.py health
+```
+
+---
+
+## Commands
+
+### `disk`
+
+**What it does:** Check disk space usage for a path.
+
+**Usage:**
+```bash
+python main.py disk [path]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `path` | ❌ No | Path to check (default: /) | `/home` |
+
+**Example:**
 ```bash
 python main.py disk
 python main.py disk /home
 ```
 
-### Check Memory
+**Output:**
+```
+✅ Disk Usage (/)
+   Total: 500.0 GB
+   Used: 250.0 GB (50.0%)
+   Free: 250.0 GB
+```
+
+---
+
+### `memory`
+
+**What it does:** Check RAM memory usage.
+
+**Usage:**
 ```bash
 python main.py memory
 ```
 
-### Check CPU
+**Example:**
+```bash
+python main.py memory
+```
+
+**Output:**
+```
+✅ Memory Usage
+   Total: 16.0 GB
+   Used: 8.5 GB (53.1%)
+   Available: 7.5 GB
+```
+
+---
+
+### `cpu`
+
+**What it does:** Check CPU usage and frequency.
+
+**Usage:**
 ```bash
 python main.py cpu
 ```
 
-### System Information
+**Example:**
+```bash
+python main.py cpu
+```
+
+**Output:**
+```
+✅ CPU Usage
+   Usage: 25%
+   Cores: 8
+   Frequency: 3600 MHz
+```
+
+---
+
+### `info`
+
+**What it does:** Get general system information.
+
+**Usage:**
 ```bash
 python main.py info
 ```
 
-### System Health
+**Example:**
+```bash
+python main.py info
+```
+
+---
+
+### `health`
+
+**What it does:** Overall system health check with all metrics.
+
+**Usage:**
 ```bash
 python main.py health
 ```
 
-Shows overall status with thresholds:
-- **Good**: < 80% usage
-- **Warning**: 80-90% usage
-- **Critical**: > 90% usage
+**Example:**
+```bash
+python main.py health
+```
 
-### Find Large Files
+**Output:**
+```
+✅ System Health: HEALTHY
+   Timestamp: 2026-03-20 14:30:52
+
+Checks:
+   ✅ Disk: 50% used
+   ✅ Memory: 53% used
+   ✅ CPU: 25% used
+```
+
+---
+
+### `large-files`
+
+**What it does:** Find files larger than a threshold.
+
+**Usage:**
+```bash
+python main.py large-files [directory] [n]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `directory` | ❌ No | Directory to search | `~` |
+| `n` | ❌ No | Number of files to return | `10` |
+
+**Example:**
 ```bash
 python main.py large-files
 python main.py large-files ~/Downloads 20
 ```
 
-## Input Validation Limits
+---
 
-| Parameter | Limit |
-|-----------|-------|
-| Rate limit | 30 calls per 60 seconds |
-| Large file scan depth | 10 directory levels |
-| Max files to check | 10,000 |
-| Results limit | 100 files |
-| Path validation | Home directory, /tmp, /var/tmp only |
+## Use Cases
 
-## Security Considerations
+- **Disk full warning:** Check what's consuming space
+- **Performance issues:** See if RAM or CPU is maxed out
+- **Cleanup:** Find large files to delete
+- **Monitoring:** Regular health checks via cron
 
-- **Path Traversal Protection**: Blocks `..` sequences in paths
-- **Directory Restrictions**: Only scans allowed directories
-- **Rate Limiting**: Prevents excessive system calls
-- **Path Disclosure Prevention**: Shows relative paths, not absolute
-- **Safe Path Resolution**: Validates all paths before access
+---
 
-## Error Handling
+## Tips & Tricks
 
-Errors are categorized:
-- **Rate Limit**: Too many requests
-- **ImportError**: psutil not installed
-- **PermissionError**: Insufficient system access
-- **OSError**: System call failures
+- Run `health` for a quick overall status
+- Use `large-files` to find space hogs
+- Set up a cron job for daily health checks
+- Check `/home` for user disk usage specifically
 
-## Known Limitations
+---
 
-- Requires psutil for memory and CPU info
-- Rate limited to 30 calls per minute
-- Large file scan limited to 10,000 files
-- CPU usage measurement requires 1-second delay
-- Some metrics require root/admin access
+## Troubleshooting
 
-## Examples
+| Problem | Solution |
+|---------|----------|
+| "psutil not installed" | Run `pip install psutil` |
+| Rate limited | Wait 60 seconds (30 calls/minute limit) |
+| Permission denied | Some metrics need elevated permissions |
 
-```bash
-# Check system health
-python main.py health
+---
 
-# Monitor disk space
-python main.py disk /
+## Requirements
 
-# Find large files in Downloads
-python main.py large-files ~/Downloads 10
+- Python 3.8+
+- OpenClaw installed
+- psutil library (`pip install psutil`)
 
-# Get full system info
-python main.py info
-```
+---
+
+## Support
+
+- 📖 [Full Documentation](https://smfworks.com/skills/system-monitor)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

@@ -1,130 +1,199 @@
-# Lead Capture System
+# Lead Capture
 
-Capture, qualify, and manage sales leads for small businesses.
+> Capture, qualify, and manage sales leads with automatic scoring
 
-## Features
+---
 
-- ✅ Interactive lead capture
-- ✅ Automatic lead scoring (0-100)
-- ✅ Status classification (Hot/Warm/Cold/Dormant)
-- ✅ JSON/CSV export
-- ✅ Lead statistics and analytics
-- ✅ Local storage (private, no cloud)
+## What It Does
 
-## Usage
+Lead Capture helps you collect and organize potential customers. Add leads with contact info and notes, automatically score them based on engagement signals, and export prioritized lists for your sales team.
+
+---
+
+## Installation
+
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
+```bash
+smfw install lead-capture
+```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
+
+---
+
+## Quick Start
+
+Capture your first lead:
 
 ```bash
-# Capture a new lead (interactive)
-python main.py capture
+python main.py capture --name "Jane Doe" --email "jane@company.com"
+```
 
-# List all leads
+---
+
+## Commands
+
+### `capture`
+
+**What it does:** Add a new lead to your database.
+
+**Usage:**
+```bash
+python main.py capture [options]
+```
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--name` | ✅ Yes | Contact name | `--name "Jane Doe"` |
+| `--email` | ✅ Yes | Email address | `--email "jane@company.com"` |
+| `--phone` | ❌ No | Phone number | `--phone "555-1234"` |
+| `--company` | ❌ No | Company name | `--company "Acme Corp"` |
+| `--source` | ❌ No | Where lead came from | `--source "Website"` |
+| `--notes` | ❌ No | Additional notes | `--notes "Interested in enterprise plan"` |
+
+**Example:**
+```bash
+python main.py capture --name "Jane Doe" --email "jane@company.com" --company "Acme"
+python main.py capture --name "John Smith" --email "john@corp.com" --source "Trade show"
+```
+
+---
+
+### `list`
+
+**What it does:** Display all leads, sorted by score.
+
+**Usage:**
+```bash
 python main.py list
-python main.py list 10  # Limit to 10
-
-# Export leads
-python main.py export csv
-python main.py export json
-
-# Show statistics
-python main.py stats
 ```
 
-## Lead Scoring
-
-Leads are automatically scored based on:
-
-| Factor | Points |
-|--------|--------|
-| Email provided | 20 |
-| Phone provided | 20 |
-| Company name | 15 |
-| Title/role | 10 |
-| Budget: small/medium/large | 10/20/30 |
-| Timeline: immediate/1mo/3mo/6mo | 30/20/10/5 |
-
-**Status Thresholds:**
-- 🔥 Hot: 80-100 points
-- 🌡️ Warm: 60-79 points
-- ❄️ Cold: 40-59 points
-- 💤 Dormant: 0-39 points
-
-## Data Storage
-
-Leads are stored locally in `~/.smf/leads/` as JSON files:
-- Private: Data never leaves your machine
-- Portable: Easy to backup or migrate
-- Standard format: JSON for easy integration
-
-## Lead Schema
-
-```json
-{
-  "id": "lead-20260320-143052",
-  "captured_at": "2026-03-20T14:30:52",
-  "status": "new",
-  "name": "John Smith",
-  "email": "john@example.com",
-  "phone": "555-1234",
-  "company": "Acme Corp",
-  "title": "CEO",
-  "budget": "medium",
-  "timeline": "1-month",
-  "source": "website",
-  "notes": "Interested in AI automation",
-  "score": 85
-}
-```
-
-## Export Format
-
-### CSV Export
-```csv
-id,name,email,phone,company,score,captured_at
-lead-20260320-143052,John Smith,john@example.com,...,Acme Corp,85,2026-03-20T14:30:52
-```
-
-### JSON Export
-```json
-[
-  {
-    "id": "lead-20260320-143052",
-    "name": "John Smith",
-    ...
-  }
-]
-```
-
-## Subscription
-
-**Lead Capture System is a premium SMF Works skill.**
-
-This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
-
-- **Price:** $19.99/month (locked forever at signup rate)
-- **Includes:** All premium skills, future updates, priority support
-- **Free alternative:** Use the 5 free skills (File Organizer, PDF Toolkit, QR Generator, Text Formatter, System Info)
-
-Subscribe at https://smf.works/subscribe
-
-## Setup & Configuration
-
-**New users:** See [SETUP.md](./SETUP.md) for complete installation and configuration instructions.
-
-### Quick Setup
-
+**Example:**
 ```bash
-# 1. Subscribe at https://smf.works/subscribe
-# 2. Login
-python ../../cli/smf_login.py login
-# 3. Start capturing leads
-python main.py capture
+python main.py list
 ```
 
-## Documentation
+**Output:**
+```
+👥 Your Leads (5):
+------------------------------------------------------------
+1. ⭐⭐⭐ Hot | Jane Doe | jane@company.com | Acme Corp
+2. ⭐⭐ Warm  | John Smith | john@corp.com | —
+3. ⭐ Cold  | Bob Wilson | bob@email.com | Wilson & Sons
+```
 
-- [SETUP.md](./SETUP.md) - Complete setup, configuration, and troubleshooting guide
-- [AUTH_SYSTEM.md](../../docs/AUTH_SYSTEM.md) - Authentication system documentation
+---
 
-## License
+### `export`
 
-SMF Works Pro Skill - See SMF Works Terms of Service
+**What it does:** Export leads to CSV or JSON format.
+
+**Usage:**
+```bash
+python main.py export [options]
+```
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--format` | ❌ No | Export format: `csv` or `json` | `--format csv` |
+| `--output` | ❌ No | Output file path | `--output leads.csv` |
+
+**Example:**
+```bash
+python main.py export --format csv --output leads.csv
+python main.py export --format json --output leads.json
+```
+
+---
+
+### `search`
+
+**What it does:** Search leads by keyword.
+
+**Usage:**
+```bash
+python main.py search [keyword]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `keyword` | ✅ Yes | Search term | `consulting` |
+
+**Example:**
+```bash
+python main.py search "enterprise"
+python main.py search "referral"
+```
+
+---
+
+### `score`
+
+**What it does:** Score and prioritize leads.
+
+**Usage:**
+```bash
+python main.py score
+```
+
+**Example:**
+```bash
+python main.py score
+```
+
+---
+
+## Use Cases
+
+- **Website forms:** Capture leads from contact forms
+- **Trade shows:** Collect badges and add leads after events
+- **Referrals:** Track who referred whom
+- **Sales prioritization:** Focus on hottest leads first
+
+---
+
+## Tips & Tricks
+
+- Add `--source` to track where leads come from
+- Use `score` regularly to identify hot leads
+- Export to CSV to import into other CRM tools
+- Search by company name to find all contacts at one company
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "Email already exists" | Lead already captured; use search to find it |
+| "Invalid email format" | Check the email address format |
+| Empty export | Ensure you have leads captured first |
+
+---
+
+## Requirements
+
+- Python 3.8+
+- OpenClaw installed
+- No external dependencies
+
+---
+
+## Support
+
+- 📖 [Full Documentation](https://smfworks.com/skills/lead-capture)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

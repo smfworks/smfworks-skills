@@ -1,354 +1,286 @@
-# Task/Project Manager
+# Task Manager
 
-Kanban-style task and project management for individuals and teams. Create projects, manage tasks through stages, track progress.
+> Kanban-style task and project management for individuals and teams
 
-## Features
+---
 
-- ✅ **Projects** — Create and organize multiple projects
-- ✅ **Kanban Board** — Visual task management (backlog, todo, in-progress, review, done)
-- ✅ **Task Priorities** — Low, medium, high, critical
-- ✅ **Due Dates** — Track deadlines and get overdue alerts
-- ✅ **Assignments** — Assign tasks to team members
-- ✅ **Tags** — Categorize and filter tasks
-- ✅ **Statistics** — Completion rates, workload analysis
-- ✅ **Local Storage** — All data stays on your machine
+## What It Does
+
+Task Manager brings simple project management to your terminal. Create projects, add tasks with priorities and due dates, move them across Kanban columns (backlog, todo, in-progress, review, done), and track your progress with statistics.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Pro tier:**
 ```bash
-# Install SMF CLI (if not already)
-curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
-
-# Login (Pro skill requires subscription)
+smfw install task-manager
 smf login
-
-# Install the skill
-smf install task-manager
 ```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
+
+---
 
 ## Quick Start
 
-### 1. Create a Project
+Create a project and add your first task:
 
 ```bash
-smf run task-manager project add "Website Redesign" "Complete redesign of company website"
+smf run task-manager project add "My Project"
+smf run task-manager task add "First task" --project "My Project"
 ```
 
-### 2. Add Tasks
+---
 
+## Commands
+
+### `project add`
+
+**What it does:** Create a new project.
+
+**Usage:**
 ```bash
-# Interactive mode
-smf run task-manager task add
-
-# Or specify details
-smf run task-manager task add "Fix navigation bug" \
-  --project "Website Redesign" \
-  --priority high \
-  --due 2026-03-25 \
-  --assignee "John"
+smf run task-manager project add [name] [description]
 ```
 
-### 3. View Kanban Board
+**Arguments:**
 
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `name` | ✅ Yes | Project name | `Website Redesign` |
+| `description` | ❌ No | Project description | `Redesign company website` |
+
+**Example:**
 ```bash
-smf run task-manager board --project "Website Redesign"
+smf run task-manager project add "Website Redesign"
+smf run task-manager project add "Website Redesign" "Redesign company website"
 ```
 
-Output:
-```
-📋 Kanban Board
-================================================================================
-Project: Website Redesign
+---
 
-📥 BACKLOG (2)
-------------------------------------------------------------------------------
-   🟡 TASK-A1B2C3D4: Research competitor websites...
-   🟢 TASK-E5F6G7H8: Draft content outline
+### `project list`
 
-📝 TODO (3)
-------------------------------------------------------------------------------
-   🔴 TASK-I9J0K1L2: Fix navigation bug 📅 2026-03-25
-   🟠 TASK-M3N4O5P6: Update hero section
-   🟡 TASK-Q7R8S9T0: Optimize images
+**What it does:** List all projects.
 
-🔄 IN-PROGRESS (1)
-------------------------------------------------------------------------------
-   🟠 TASK-U1V2W3X4: Redesign footer
-
-👀 REVIEW (0)
-------------------------------------------------------------------------------
-   (empty)
-
-✅ DONE (2)
-------------------------------------------------------------------------------
-   ✅ TASK-Y5Z6A7B8: Create color palette
-   ✅ TASK-C9D0E1F2: Set up project
-```
-
-### 4. Move Tasks
-
-```bash
-smf run task-manager task move TASK-I9J0K1L2 --to in-progress
-smf run task-manager task move TASK-I9J0K1L2 --to done
-```
-
-### 5. Check Statistics
-
-```bash
-smf run task-manager stats --project "Website Redesign"
-```
-
-## Usage
-
-### Project Commands
-
-**Create project:**
-```bash
-smf run task-manager project add "Project Name" "Description"
-```
-
-**List projects:**
+**Usage:**
 ```bash
 smf run task-manager project list
 ```
 
-### Task Commands
+---
 
-**Add task (interactive):**
+### `task add`
+
+**What it does:** Add a new task to a project.
+
+**Usage:**
 ```bash
-smf run task-manager task add
+smf run task-manager task add [title] [options]
 ```
 
-**Add task (quick):**
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `title` | ✅ Yes | Task title | `Fix navigation` |
+
+**Options:**
+
+| Option | Required | Description | Example |
+|--------|----------|-------------|---------|
+| `--project` | ❌ No | Project name or ID | `--project "Website Redesign"` |
+| `--priority` | ❌ No | low/medium/high/critical | `--priority high` |
+| `--due` | ❌ No | Due date (YYYY-MM-DD) | `--due 2026-04-01` |
+| `--assignee` | ❌ No | Person assigned | `--assignee "John"` |
+| `--tags` | ❌ No | Comma-separated tags | `--tags "bug,urgent"` |
+
+**Example:**
 ```bash
-smf run task-manager task add "Task title" \
-  --project "Website" \
-  --priority high \
-  --due 2026-03-25 \
-  --assignee "John" \
-  --tags "bug,urgent"
+smf run task-manager task add "Fix navigation" --priority high --due 2026-04-01
+smf run task-manager task add "Write content" --project "Website Redesign" --tags "content"
 ```
 
-**Show task details:**
+---
+
+### `task show`
+
+**What it does:** Show full details of a task.
+
+**Usage:**
+```bash
+smf run task-manager task show [task-id]
+```
+
+**Example:**
 ```bash
 smf run task-manager task show TASK-ABC123
 ```
 
-**Move task:**
+---
+
+### `task move`
+
+**What it does:** Move a task to a different status column.
+
+**Usage:**
 ```bash
+smf run task-manager task move [task-id] --to [status]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `task-id` | ✅ Yes | Task ID | `TASK-ABC123` |
+
+**Options:**
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--to` | ✅ Yes | Target status |
+
+**Statuses:** `backlog`, `todo`, `in-progress`, `review`, `done`
+
+**Example:**
+```bash
+smf run task-manager task move TASK-ABC123 --to done
 smf run task-manager task move TASK-ABC123 --to in-progress
 ```
 
-Valid statuses: `backlog`, `todo`, `in-progress`, `review`, `done`, `archived`
+---
 
-**Archive task:**
+### `board`
+
+**What it does:** Display Kanban board view of tasks.
+
+**Usage:**
 ```bash
-smf run task-manager task delete TASK-ABC123
+smf run task-manager board [options]
 ```
 
-### Board View
+**Options:**
 
-**Show all projects:**
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--project` | ❌ No | Filter by project name |
+
+**Example:**
 ```bash
 smf run task-manager board
-```
-
-**Show specific project:**
-```bash
 smf run task-manager board --project "Website Redesign"
 ```
 
-### List View
+---
 
-**List all tasks:**
+### `list`
+
+**What it does:** List all tasks in table format.
+
+**Usage:**
+```bash
+smf run task-manager list [options]
+```
+
+**Options:**
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--status` | ❌ No | Filter by status |
+
+**Example:**
 ```bash
 smf run task-manager list
-```
-
-**List by status:**
-```bash
 smf run task-manager list --status todo
-smf run task-manager list --status in-progress
 ```
 
-### Statistics
+---
 
-**All projects:**
+### `stats`
+
+**What it does:** Show project/task statistics.
+
+**Usage:**
+```bash
+smf run task-manager stats [options]
+```
+
+**Example:**
 ```bash
 smf run task-manager stats
 ```
 
-**Specific project:**
-```bash
-smf run task-manager stats --project "Website Redesign"
-```
-
-Output:
+**Output:**
 ```
 📊 Task Statistics
-========================================
-Project: Website Redesign
+==================================================
 
-Total Tasks: 15
-Completed: 7 (46.7%)
+Total Tasks: 25
+Completed: 18 (72.0%)
 Due Soon (≤3 days): 3
-⚠️  Overdue: 1
 
 By Status:
-  backlog: 3
-  todo: 4
-  in-progress: 1
-  done: 7
+  todo: 5
+  in-progress: 2
+  review: 1
+  done: 18
 
 By Priority:
   critical: 2
   high: 5
-  medium: 6
-  low: 2
+  medium: 10
+  low: 8
 ```
 
-## Workflow
+---
 
-### Personal Task Management
+## Use Cases
 
-1. **Capture** — Add tasks to backlog
-2. **Prioritize** — Move high priority to todo
-3. **Focus** — Work on in-progress tasks
-4. **Complete** — Move to done when finished
-5. **Review** — Weekly stats review
+- **Personal productivity:** Track personal tasks and to-dos
+- **Project tracking:** Manage tasks for specific projects
+- **Kanban workflow:** Visualize work across columns
+- **Prioritization:** Focus on high-priority tasks
+- **Due date tracking:** Never miss a deadline
 
-### Team Collaboration
-
-1. **Project Setup** — Create project, invite team
-2. **Assignment** — Assign tasks by expertise
-3. **Tracking** — Daily standup using board view
-4. **Review** — Code review/QA in review column
-5. **Ship** — Complete and archive
-
-## Priority Levels
-
-| Level | Icon | Use For |
-|-------|------|---------|
-| Critical | 🔴 | Blockers, emergencies |
-| High | 🟠 | Important deadlines |
-| Medium | 🟡 | Normal tasks |
-| Low | 🟢 | Nice-to-haves |
-
-## Status Columns
-
-| Column | Purpose |
-|--------|---------|
-| Backlog | Ideas, future work |
-| Todo | Ready to work on |
-| In-Progress | Currently working |
-| Review | Needs review/QA |
-| Done | Complete |
-| Archived | Closed/hidden |
-
-## Task Data
-
-Each task includes:
-- **ID:** Unique identifier (TASK-XXXXXXXX)
-- **Title:** Short description
-- **Description:** Full details
-- **Project:** Which project it belongs to
-- **Status:** Current column
-- **Priority:** Importance level
-- **Due Date:** Deadline
-- **Assignee:** Who's responsible
-- **Tags:** Categories
-- **Created:** When added
-- **Updated:** Last change
-- **Completed:** When finished
-
-## Storage Location
-
-Projects and tasks stored in:
-```
-~/.smf/tasks/
-├── projects.json         # Project definitions
-├── task-TASK-XXXXXXXX.json  # Individual task files
-└── ...
-```
-
-All data is local and private.
+---
 
 ## Tips & Tricks
 
-### Daily Standup Script
+- Create projects to organize tasks by area
+- Use priorities to focus on what matters most
+- Use `--due` to track deadlines
+- Check `stats` regularly for progress overview
+- Move tasks to `done` when completed
 
-Create `~/standup.sh`:
-```bash
-#!/bin/bash
-export PATH="$HOME/.local/bin:$PATH"
+---
 
-echo "📋 Yesterday's completed:"
-smf run task-manager list --status done | tail -5
+## Troubleshooting
 
-echo ""
-echo "🔄 In progress:"
-smf run task-manager list --status in-progress
+| Problem | Solution |
+|---------|----------|
+| "Subscription required" | Run `smf login` to activate Pro access |
+| "Project not found" | Check project name with `project list` |
+| "Invalid status" | Use: backlog, todo, in-progress, review, done |
 
-echo ""
-echo "📝 Today's plan:"
-smf run task-manager list --status todo | head -5
-```
+---
 
-Make executable:
-```bash
-chmod +x ~/standup.sh
-~/standup.sh
-```
+## Requirements
 
-### Weekly Review
+- Python 3.8+
+- OpenClaw installed
+- Pro subscription
 
-```bash
-# Check overdue tasks
-smf run task-manager stats
+---
 
-# Archive completed
-# (Tasks in done column automatically tracked)
-```
+## Support
 
-### Priority Filtering
-
-Combine with grep:
-```bash
-# Show only critical tasks
-smf run task-manager list | grep "🔴"
-
-# Show overdue
-smf run task-manager stats | grep "Overdue"
-```
-
-## Backup
-
-```bash
-# Backup all tasks
-cp -r ~/.smf/tasks ~/backups/tasks-$(date +%Y%m%d)
-
-# Or sync to cloud
-rclone sync ~/.smf/tasks gdrive:tasks-backup/
-```
-
-## Pricing
-
-**Task Manager is a premium SMF Works skill.**
-
-This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
-
-- **Price:** $19.99/month (locked forever at signup rate)
-- **Includes:** All premium skills, updates, priority support
-- **Free alternative:** Use Trello, GitHub Issues, or pen and paper
-
-Subscribe at https://smf.works/subscribe
-
-## See Also
-
-- [SETUP.md](./SETUP.md) — Complete setup and configuration guide
-- `smf help` — CLI documentation
-- `smf status` — Check subscription status
-
-## License
-
-SMF Works Pro Skill — See SMF Works Terms of Service
+- 📖 [Full Documentation](https://smfworks.com/skills/task-manager)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

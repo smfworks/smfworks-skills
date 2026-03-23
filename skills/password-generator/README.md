@@ -1,91 +1,178 @@
 # Password Generator
 
-A security utility skill for OpenClaw. Generate strong passwords and passphrases.
+> Generate cryptographically secure passwords and memorable passphrases
 
-## Features
+---
 
-- **Random Passwords**: Generate cryptographically secure passwords
-- **Memorable Passphrases**: XKCD-style word-based passphrases
-- **Strength Checking**: Analyze password security
-- **Entropy Calculation**: Estimate password complexity in bits
+## What It Does
 
-## Usage
+Password Generator creates strong, random passwords and memorable passphrases. Uses Python's `secrets` module for cryptographic security — suitable for high-security applications. Check existing password strength with detailed feedback.
 
-### Generate Password
+---
+
+## Installation
+
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-# Default 16-character password
-python main.py password
-
-# Custom length
-python main.py password 20
+smfw install password-generator
 ```
 
-Generates passwords with:
-- Uppercase letters
-- Lowercase letters
-- Digits
-- Special characters
-
-### Generate Passphrase
+**Or clone directly:**
 ```bash
-# Default 4 words + number
-python main.py passphrase
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
 
-# Custom word count
+---
+
+## Quick Start
+
+Generate a secure password instantly:
+
+```bash
+python main.py password
+```
+
+---
+
+## Commands
+
+### `password`
+
+**What it does:** Generate a cryptographically secure random password.
+
+**Usage:**
+```bash
+python main.py password [length]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `length` | ❌ No | Password length (4-128) | `16` |
+
+**Example:**
+```bash
+python main.py password
+python main.py password 32
+python main.py password 24
+```
+
+**Output:**
+```
+Generated password: Xk9#mP2$vL8@nQ4!
+Strength: Very Strong 💪
+Entropy: 95.6 bits
+```
+
+---
+
+### `passphrase`
+
+**What it does:** Generate a memorable XKCD-style passphrase.
+
+**Usage:**
+```bash
+python main.py passphrase [word-count]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `word-count` | ❌ No | Number of words (2-20) | `4` |
+
+**Example:**
+```bash
+python main.py passphrase
 python main.py passphrase 6
 ```
 
-Example output: `hotel-fig-jade-42`
+**Output:**
+```
+Generated passphrase: hotel-fig-jade-42
+```
 
-### Check Password Strength
+---
+
+### `check`
+
+**What it does:** Analyze password strength and provide improvement suggestions.
+
+**Usage:**
+```bash
+python main.py check [password]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `password` | ✅ Yes | Password to check | `MyPassword123!` |
+
+**Example:**
 ```bash
 python main.py check "MyPassword123!"
+python main.py check "Tr0ub4dor&3"
 ```
 
-Shows:
-- Strength rating (Weak/Moderate/Strong/Very Strong)
-- Entropy in bits
-- Character variety analysis
-- Improvement suggestions
-
-## Input Validation Limits
-
-| Parameter | Limit |
-|-----------|-------|
-| Password length | 4-128 characters |
-| Passphrase words | 2-20 words |
-| Character types | At least one must be enabled |
-
-## Security Considerations
-
-- **Cryptographically Secure**: Uses Python's `secrets` module (not random)
-- **Memory Safe**: Doesn't store generated passwords
-- **No Logging**: Passwords are not written to logs
-- **Character Variety**: Ensures at least one character from each enabled type
-- **SystemRandom**: Uses OS-level entropy source
-
-## Error Handling
-
-Errors are categorized:
-- **ValueError**: Invalid length or missing character types
-- **RuntimeError**: System entropy unavailable
-
-## Known Limitations
-
-- Word list is fixed (100 common words)
-- Strength estimation is algorithmic (not real-world crack time)
-- No dictionary checking for common passwords
-- Maximum password length of 128 characters
-
-## Examples
-
-```bash
-# Generate strong password
-python main.py password 32
-
-# Create memorable passphrase
-python main.py passphrase 5
-
-# Check existing password
-python main.py check "Tr0ub4dor&"
+**Output:**
 ```
+Password: Tr0ub4dor&3
+Length: 12
+Strength: Strong ✅
+Score: 7/9
+Entropy: 71.4 bits
+
+Suggestions:
+  - Consider using a longer password (16+ characters)
+```
+
+---
+
+## Use Cases
+
+- **New accounts:** Generate strong passwords for online accounts
+- **Password updates:** Create new passwords when rotating accounts
+- **Password manager:** Fill your password manager with secure passwords
+- **Passphrases:** Create memorable passwords for less critical accounts
+- **Security auditing:** Check if existing passwords meet strength requirements
+
+---
+
+## Tips & Tricks
+
+- Use 16+ character passwords for important accounts
+- Passphrases are easier to remember AND more secure
+- Use `check` to verify passwords meet your organization's requirements
+- Store generated passwords in a password manager
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "At least one character type required" | Enable at least one character type |
+| Password too short/long | Use length between 4 and 128 characters |
+| Passphrase not random enough | Increase word count |
+
+---
+
+## Requirements
+
+- Python 3.8+
+- OpenClaw installed
+- No external dependencies (uses built-in `secrets` and `string` modules)
+
+---
+
+## Support
+
+- 📖 [Full Documentation](https://smfworks.com/skills/password-generator)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

@@ -1,96 +1,98 @@
 # Database Backup
 
-Automated database backups for SQLite, PostgreSQL, and MySQL. Compress, encrypt, and manage backups with ease.
+> Automated backups for SQLite, PostgreSQL, and MySQL databases with compression and restore
 
-## Features
+---
 
-- ✅ **SQLite** — Native .dump with gzip compression
-- ✅ **PostgreSQL** — pg_dump integration
-- ✅ **MySQL** — mysqldump integration
-- ✅ **Compression** — Automatic gzip compression
-- ✅ **List & Manage** — View all backups, sizes, dates
-- ✅ **Restore** — Restore from backup (SQLite)
-- ✅ **Cleanup** — Auto-remove old backups
-- ✅ **Local Storage** — Backups stay on your machine
+## What It Does
+
+Database Backup handles automated backups for all your databases — SQLite, PostgreSQL, and MySQL. It compresses backups to save space, keeps a history of backups, and lets you restore with a single command when things go wrong.
+
+---
 
 ## Installation
 
-```bash
-# Install SMF CLI (if not already)
-curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
+This skill is available from the SMF Works Skills Repository.
 
-# Login (Pro skill requires subscription)
+**Pro tier:**
+```bash
+smfw install database-backup
 smf login
-
-# Install the skill
-smf install database-backup
 ```
 
-## Usage
-
-### Interactive Backup
-
+**Or clone directly:**
 ```bash
-smf run database-backup backup
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
 ```
 
-This launches an interactive wizard:
-1. Select database type (SQLite/PostgreSQL/MySQL)
-2. Enter connection details
-3. Choose backup destination
-4. Done!
+---
 
-### SQLite Backup
+## Quick Start
+
+Start an interactive backup session:
 
 ```bash
-# Interactive
-smf run database-backup backup
+python main.py backup
+```
 
-# Example flow:
+---
+
+## Commands
+
+### `backup`
+
+**What it does:** Launch interactive wizard to back up any supported database.
+
+**Usage:**
+```bash
+python main.py backup
+```
+
+**Example:**
+```bash
+python main.py backup
+
+# Example session:
 # Select database type: 1 (SQLite)
 # SQLite database file path: ~/myapp.db
 # Backup destination: ~/backups/
-```
 
-### PostgreSQL Backup
-
-```bash
-# Interactive
-smf run database-backup backup
-
-# Example flow:
+# Or PostgreSQL:
 # Select database type: 2 (PostgreSQL)
 # Host: localhost
 # Port: 5432
 # Database name: myapp
 # Username: postgres
-# Password: *****
-# Backup destination: ~/backups/
+# Password: env:DB_PASSWORD
 ```
 
-### MySQL Backup
+**Output:**
+```
+✅ Backup complete!
+   File: ~/.smf/backups/myapp-20260320-143052.sqlite.sql.gz
+   Size: 2.3 MB
+   Compression: 75%
+```
 
+---
+
+### `list`
+
+**What it does:** Display all existing backups with size and date.
+
+**Usage:**
 ```bash
-# Interactive
-smf run database-backup backup
-
-# Example flow:
-# Select database type: 3 (MySQL)
-# Host: localhost
-# Port: 3306
-# Database name: myapp
-# Username: root
-# Password: *****
-# Backup destination: ~/backups/
+python main.py list
 ```
 
-### List Backups
-
+**Example:**
 ```bash
-smf run database-backup list
+python main.py list
 ```
 
-Output:
+**Output:**
 ```
 💾 5 Backup(s)
 --------------------------------------------------------------------------------
@@ -101,210 +103,132 @@ myapp-20260319-120000.sqlite.sql.gz              2.1 MB     2026-03-19 12:00:00
 postgres-prod-20260318-080000.postgres.sql.gz    45.7 MB    2026-03-18 08:00:00
 ```
 
-### Show Statistics
+---
 
+### `stats`
+
+**What it does:** Show backup statistics and storage usage.
+
+**Usage:**
 ```bash
-smf run database-backup stats
+python main.py stats
 ```
 
-Output:
+**Example:**
+```bash
+python main.py stats
+```
+
+**Output:**
 ```
 📊 Backup Statistics
 ========================================
 Total backups: 15
 Total size: 128.5 MB
-Backup location: /home/user/.smf/backups
+Backup location: ~/.smf/backups
 
 Backups by database:
   myapp: 10 backup(s)
   postgres-prod: 5 backup(s)
 ```
 
-### Restore Backup (SQLite)
+---
 
+### `restore`
+
+**What it does:** Restore a database from a compressed backup file.
+
+**Usage:**
 ```bash
-smf run database-backup restore ~/backups/myapp-20260320-143052.sqlite.sql.gz
-
-# Enter target file when prompted
-# Target database file: ~/myapp-restored.db
-# Confirm: yes
+python main.py restore [backup-file]
 ```
 
-### Cleanup Old Backups
+**Arguments:**
 
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `backup-file` | ✅ Yes | Path to backup file | `~/backups/myapp-20260320.sqlite.sql.gz` |
+
+**Example:**
 ```bash
-# Remove backups older than 30 days (default)
-smf run database-backup cleanup
-
-# Remove backups older than 7 days
-smf run database-backup cleanup 7
+python main.py restore ~/.smf/backups/myapp-20260320-143052.sqlite.sql.gz
 ```
 
-## Backup Location
-
-By default, backups are stored in:
+**Output:**
 ```
-~/.smf/backups/
-```
-
-Each backup is named:
-```
-{database-name}-{timestamp}.{db-type}.sql.gz
-
-Examples:
-  myapp-20260320-143052.sqlite.sql.gz
-  production-20260320-120000.postgres.sql.gz
-  wordpress-20260319-080000.mysql.sql.gz
+⚠️  This will overwrite: ~/myapp.db
+Are you sure? (yes/no): yes
+✅ Restored successfully!
 ```
 
-## Compression
+---
 
-All backups are automatically gzip compressed:
-- Typical compression: 70-90% for text-heavy databases
-- Compression ratio shown after backup
-- Transparent decompression on restore
+### `cleanup`
 
-## Automated Backups
+**What it does:** Remove backups older than specified days.
 
-### Using Cron (Linux/macOS)
-
+**Usage:**
 ```bash
-# Edit crontab
-crontab -e
-
-# Daily backup at 2 AM
-0 2 * * * smf run database-backup backup < ~/backups/answers.txt
-
-# Or with specific config
-0 2 * * * cd ~/ && smf run database-backup backup
+python main.py cleanup [days]
 ```
 
-### Using Systemd Timer (Linux)
+**Arguments:**
 
-Create `~/.config/systemd/user/smf-backup.service`:
-```ini
-[Unit]
-Description=SMF Database Backup
+| Argument | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `days` | ❌ No | Remove backups older than N days | `30` |
 
-[Service]
-Type=oneshot
-ExecStart=/home/user/.local/bin/smf run database-backup backup
-```
-
-Create `~/.config/systemd/user/smf-backup.timer`:
-```ini
-[Unit]
-Description=Daily Database Backup
-
-[Timer]
-OnCalendar=daily
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
-
-Enable:
+**Example:**
 ```bash
-systemctl --user enable smf-backup.timer
-systemctl --user start smf-backup.timer
+python main.py cleanup
+python main.py cleanup 7
 ```
 
-## Requirements
+---
 
-### SQLite
-- `sqlite3` command line tool
-- Usually pre-installed on most systems
+## Use Cases
 
-### PostgreSQL
-- `pg_dump` command line tool
-- Install: `sudo apt install postgresql-client` (Ubuntu/Debian)
-- Install: `brew install libpq` (macOS)
+- **Daily backups:** Schedule automatic daily backups via cron
+- **Before updates:** Create a backup before updating your application
+- **Migration:** Back up a database before moving to a new server
+- **Disaster recovery:** Restore from backup when things go wrong
+- **Audit trail:** Keep point-in-time backups for compliance
 
-### MySQL
-- `mysqldump` command line tool
-- Install: `sudo apt install mysql-client` (Ubuntu/Debian)
-- Install: `brew install mysql` (macOS)
+---
 
-## Backup Security
+## Tips & Tricks
 
-- **Local only:** Backups never leave your machine
-- **Permissions:** Backup files created with 0600 (user-only)
-- **Compression:** Reduces exposure of raw SQL
-- **No cloud:** No automatic cloud upload (you control this)
+- Use `env:VARNAME` for passwords to avoid storing them in plain text
+- Backups are automatically compressed (70-90% size reduction typical)
+- Set up cron for hands-free daily backups: `0 2 * * * smf run database-backup backup`
+- Store backups on a different drive than your database for true disaster recovery
+- Use `stats` to monitor your backup storage usage
 
-## Offsite Backup (Optional)
-
-To sync backups to cloud storage:
-
-```bash
-# Sync to S3 (requires awscli)
-aws s3 sync ~/.smf/backups/ s3://my-backup-bucket/
-
-# Sync to Google Drive (requires rclone)
-rclone sync ~/.smf/backups/ gdrive:backups/
-
-# Sync to Dropbox (requires dropbox-uploader)
-~/dropbox_uploader.sh upload ~/.smf/backups/* /
-```
+---
 
 ## Troubleshooting
 
-### "pg_dump: command not found"
-Install PostgreSQL client tools:
-```bash
-# Ubuntu/Debian
-sudo apt install postgresql-client
+| Problem | Solution |
+|---------|----------|
+| "pg_dump not found" | Install PostgreSQL client: `sudo apt install postgresql-client` |
+| "mysqldump not found" | Install MySQL client: `sudo apt install mysql-client` |
+| "Authentication failed" | Check password or use `env:VARNAME` syntax |
+| Permission denied | Ensure backup directory is writable: `chmod 700 ~/.smf/backups` |
 
-# macOS
-brew install libpq
-brew link --force libpq
+---
 
-# Add to PATH
-echo 'export PATH="/usr/local/opt/libpq/bin:$PATH"' >> ~/.zshrc
-```
+## Requirements
 
-### "mysqldump: command not found"
-Install MySQL client:
-```bash
-# Ubuntu/Debian
-sudo apt install mysql-client
+- Python 3.8+
+- OpenClaw installed
+- (Optional) `sqlite3` command for SQLite verification
+- (Optional) `pg_dump` for PostgreSQL backups
+- (Optional) `mysqldump` for MySQL backups
 
-# macOS
-brew install mysql
-```
+---
 
-### "Permission denied" on backup
-Check directory permissions:
-```bash
-chmod 700 ~/.smf
-chmod 700 ~/.smf/backups
-```
+## Support
 
-### Large database backups fail
-For very large databases, consider:
-- Splitting into smaller chunks
-- Using `pg_dump` with custom format: `pg_dump -Fc`
-- Streaming to remote storage instead of local disk
-
-## Pricing
-
-**Database Backup is a premium SMF Works skill.**
-
-This is a paid skill that is part of the SMF Works subscription service. One monthly fee for unlimited access to the growing library of premium SMF Skills and applications.
-
-- **Price:** $19.99/month (locked forever at signup rate)
-- **Includes:** All premium skills, updates, priority support
-- **Free alternative:** Use native database tools or free skills
-
-Subscribe at https://smf.works/subscribe
-
-## See Also
-
-- [SETUP.md](./SETUP.md) — Complete setup and configuration guide
-- `smf help` — CLI documentation
-- `smf status` — Check subscription status
-
-## License
-
-SMF Works Pro Skill — See SMF Works Terms of Service
+- 📖 [Full Documentation](https://smfworks.com/skills/database-backup)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

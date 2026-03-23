@@ -1,109 +1,185 @@
 # Website Checker
 
-A website monitoring skill for OpenClaw. Check URL accessibility, response times, and SSL certificate status.
+> Check if websites are up, measure response times, and verify SSL certificates
 
-## Features
+---
 
-- **URL Check**: Test if websites are accessible and measure response times
-- **SSL Certificate Check**: Verify SSL certificates and check expiration dates
-- **Bulk Checking**: Check multiple URLs at once
+## What It Does
+
+Website Checker monitors your websites and APIs. Test if URLs are accessible, measure response times, check SSL certificate expiration, and verify multiple sites at once. Essential for monitoring production services.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-# Install requests dependency
-pip install requests
+smfw install website-checker
 ```
 
-## Usage
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
 
-### Check Single URL
+---
+
+## Quick Start
+
+Check if a website is up:
+
 ```bash
 python main.py check https://example.com
+```
 
-# With custom timeout (1-300 seconds)
+---
+
+## Commands
+
+### `check`
+
+**What it does:** Check if a URL is accessible and measure response time.
+
+**Usage:**
+```bash
+python main.py check [url] [options]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `url` | ✅ Yes | Website URL to check | `https://example.com` |
+
+**Options:**
+
+| Option | Required | Description | Default |
+|--------|----------|-------------|---------|
+| `--timeout` | ❌ No | Request timeout in seconds (1-300) | `10` |
+
+**Example:**
+```bash
+python main.py check https://google.com
 python main.py check https://example.com --timeout 30
 ```
 
-Output:
+**Output:**
 ```
-✅ https://example.com
+✅ https://google.com
    Status: 200
-   Response time: 245.67ms
-   Redirected to: https://www.example.com (if applicable)
+   Response time: 45.23ms
 ```
 
-### Check SSL Certificate
-```bash
-# Default port (443)
-python main.py ssl example.com
+---
 
-# Custom port
+### `ssl`
+
+**What it does:** Check SSL certificate information and expiration.
+
+**Usage:**
+```bash
+python main.py ssl [domain] [port]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `domain` | ✅ Yes | Domain to check | `example.com` |
+| `port` | ❌ No | SSL port number | `443` |
+
+**Example:**
+```bash
+python main.py ssl example.com
+python main.py ssl smf.works
 python main.py ssl example.com 8443
 ```
 
-Output:
+**Output:**
 ```
-✅ SSL Certificate: example.com
-   Issuer: (('organizationName', "Let's Encrypt"), ...)
-   Expires: Mar 20 12:00:00 2025 GMT
+✅ SSL Certificate: smf.works
+   Issuer: Let's Encrypt
+   Expires: Mar 20 12:00:00 2026 GMT
    Days until expiry: 365
    TLS Version: TLSv1.3
 ```
 
-### Check Multiple URLs
+---
+
+### `bulk`
+
+**What it does:** Check multiple URLs at once.
+
+**Usage:**
 ```bash
-python main.py bulk https://google.com https://github.com https://stackoverflow.com
+python main.py bulk [url1] [url2] [url3] ...
 ```
 
-Output:
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `url1` | ✅ Yes | First URL to check | `https://google.com` |
+| `url2...` | ✅ Yes | Additional URLs | `https://github.com` |
+
+**Example:**
+```bash
+python main.py bulk https://google.com https://github.com https://twitter.com
+```
+
+**Output:**
 ```
 ✅ https://google.com - 200 (45.23ms)
 ✅ https://github.com - 200 (123.45ms)
 ❌ https://broken-site.com - DOWN (Connection timeout)
 ```
 
-## Input Validation Limits
+---
 
-| Parameter | Limit |
-|-----------|-------|
-| Default timeout | 10 seconds |
-| Minimum timeout | 1 second |
-| Maximum timeout | 300 seconds (5 minutes) |
-| Port range | 1-65535 |
+## Use Cases
 
-## Security Considerations
+- **Uptime monitoring:** Verify your website is responding
+- **SSL monitoring:** Check certificate expiration dates
+- **API health checks:** Test if APIs are responding
+- **Performance monitoring:** Track response times over time
+- **Incident response:** Quick checks during outages
 
-- **SSRF Protection**: Blocks access to:
-  - Localhost (127.0.0.1, ::1, localhost)
-  - Private IP ranges (10.x.x.x, 192.168.x.x, etc.)
-  - Loopback addresses
-  - Link-local addresses
-  - Non-HTTP schemes (file://, ftp://, etc.)
+---
 
-- **URL Validation**: All URLs are validated before making requests
-- **Port Validation**: Custom ports must be within valid range (1-65535)
-- **Timeout Protection**: Prevents indefinite hanging on slow connections
+## Tips & Tricks
 
-## Error Handling
+- Set up cron to run checks daily and alert on failures
+- Use `--timeout` for slow sites (up to 300 seconds)
+- SSL checks show 🔴 when expiring in <7 days
+- Bulk checks are great for monitoring multiple services
 
-The tool provides categorized error messages:
-- **SSL Error**: Certificate or TLS negotiation issues
-- **Connection Timeout**: Server not responding
-- **Connection Error**: Network or DNS issues
-- **SSRF Protection**: Blocked for security reasons
+---
 
-## Known Limitations
+## Troubleshooting
 
-- Self-signed certificates will show SSL errors
-- Some sites may block automated requests
-- Response time includes DNS resolution and connection establishment
-- Certificate information requires successful SSL handshake
+| Problem | Solution |
+|---------|----------|
+| "requests not installed" | Run `pip install requests` |
+| "Connection timeout" | Site may be down; try with `--timeout 30` |
+| "SSL Error" | Certificate may be invalid or self-signed |
+| "Access denied" | Site may block automated requests |
 
-## SSL Status Indicators
+---
 
-| Icon | Status | Days Until Expiry |
-|------|--------|-------------------|
-| ✅ | Good | 30+ days |
-| ⚠️ | Warning | 7-30 days |
-| 🔴 | Critical | < 7 days |
+## Requirements
+
+- Python 3.8+
+- OpenClaw installed
+- `requests` library (`pip install requests`)
+
+---
+
+## Support
+
+- 📖 [Full Documentation](https://smfworks.com/skills/website-checker)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

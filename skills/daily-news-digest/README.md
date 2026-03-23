@@ -1,180 +1,199 @@
 # Daily News Digest
 
-**SMF Works OpenClaw Skill**
-
-Get curated news headlines delivered daily — personalized to your interests.
+> Curated daily news briefing from top sources, filtered by your interests
 
 ---
 
 ## What It Does
 
-Fetches top headlines from NewsAPI.org and formats them into a clean, readable digest. Perfect for your morning briefing or staying informed without the noise.
-
-**Features:**
-- Choose your news categories (business, technology, science, health, sports, entertainment)
-- Set your country for local news
-- Configure how many articles per category
-- Clean, formatted output perfect for messaging
+Daily News Digest gathers the most important news stories from trusted sources and delivers them in a clean, readable format. Filter by category (technology, business, world, etc.), save stories for later, and search through your news history — all without the doom-scrolling.
 
 ---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-smf install daily-news-digest
+smfw install daily-news-digest
+```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
 ```
 
 ---
 
-## Configuration
+## Quick Start
 
-### Step 1: Get Your API Key
-
-1. Visit **https://newsapi.org/register**
-2. Create a free account
-3. Copy your API key from the dashboard
-
-**Free Tier:** 100 requests/day (plenty for daily digest)
-
-### Step 2: Configure the Skill
+Get your personalized daily news briefing:
 
 ```bash
-smf run daily-news-digest --configure
-```
-
-You'll be prompted for:
-- **API Key:** Your NewsAPI key
-- **Categories:** Comma-separated (e.g., `business,technology,science`)
-- **Country:** 2-letter code (e.g., `us`, `gb`, `ca`)
-- **Articles per category:** Default 5
-
-### Step 3: Test It
-
-```bash
-smf run daily-news-digest
+python main.py digest
 ```
 
 ---
 
-## Usage
+## Commands
 
-### Run Once
+### `digest`
 
+**What it does:** Generate your daily news digest with top stories.
+
+**Usage:**
 ```bash
-# Use saved configuration
-smf run daily-news-digest
-
-# Use different API key (one-time)
-smf run daily-news-digest --api-key YOUR_KEY_HERE
-
-# Output as JSON
-smf run daily-news-digest --output json
+python main.py digest [options]
 ```
 
-### Schedule Daily (via OpenClaw Cron)
+**Arguments:**
 
-Add to your OpenClaw cron for automatic daily delivery:
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `--category` | ❌ No | Filter by topic | `technology` |
+| `--sources` | ❌ No | Specific news sources | `BBC,CNN` |
+| `--limit` | ❌ No | Number of stories (default: 10) | `5` |
 
+**Example:**
 ```bash
-# Every day at 6:30 AM
-openclaw cron add --name "daily-news" --schedule "0 30 6 * * *" --command "smf run daily-news-digest"
+python main.py digest
+python main.py digest --category technology
+python main.py digest --sources "BBC,The Guardian" --limit 5
 ```
 
-Or via OpenClaw's cron tool:
-
-```json
-{
-  "name": "daily-news-digest",
-  "schedule": { "kind": "cron", "expr": "30 6 * * *", "tz": "America/New_York" },
-  "payload": { "kind": "systemEvent", "text": "smf run daily-news-digest" }
-}
+**Output:**
 ```
+📰 Your Daily News Digest — March 25, 2026
+==================================================
 
----
-
-## Example Output
-
-```
-📰 Daily News Digest
-📅 Saturday, March 21, 2026
+🔬 TECHNOLOGY
+------------------------------------------------------------
+1. AI breakthrough announced by leading lab
+   Source: TechCrunch | 2 hours ago
+   
+2. New smartphone features revealed
+   Source: The Verge | 4 hours ago
 
 💼 BUSINESS
-----------------------------------------
-1. Tech Giants Report Strong Q1 Earnings
-   📰 Wall Street Journal
-   🔗 https://example.com/article1
+------------------------------------------------------------
+1. Markets close at record highs
+   Source: Bloomberg | 1 hour ago
 
-2. Small Business Lending Reaches Record High
-   📰 Bloomberg
-   🔗 https://example.com/article2
+2. Major merger announced in retail sector
+   Source: WSJ | 3 hours ago
 
-💻 TECHNOLOGY
-----------------------------------------
-1. New AI Model Achieves Breakthrough Results
-   📰 TechCrunch
-   🔗 https://example.com/article3
+🌍 WORLD
+------------------------------------------------------------
+1. International summit concludes with agreements
+   Source: BBC | 5 hours ago
 
-...
-
-—
-Powered by NewsAPI.org | 10 articles
-Configure: smf run daily-news-digest --configure
+2. Climate initiative gains support
+   Source: Reuters | 6 hours ago
 ```
 
 ---
 
-## Configuration File
+### `search`
 
-Config is stored at:
-```
-~/.config/smf/skills/daily-news-digest/config.json
+**What it does:** Search through cached news stories.
+
+**Usage:**
+```bash
+python main.py search [keyword]
 ```
 
-Example:
-```json
-{
-  "api_key": "your_api_key_here",
-  "categories": ["business", "technology", "science"],
-  "country": "us",
-  "max_articles": 5
-}
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `keyword` | ✅ Yes | Search term | `AI` |
+
+**Example:**
+```bash
+python main.py search "AI"
+python main.py search "climate change"
 ```
+
+---
+
+### `topics`
+
+**What it does:** List all available news categories and sources.
+
+**Usage:**
+```bash
+python main.py topics
+```
+
+**Example:**
+```bash
+python main.py topics
+```
+
+**Output:**
+```
+📚 Available Categories:
+   • technology
+   • business
+   • world
+   • science
+   • health
+   • sports
+   • entertainment
+
+📰 Available Sources:
+   • BBC News
+   • CNN
+   • Reuters
+   • Bloomberg
+   • The Guardian
+   • TechCrunch
+   • The Verge
+```
+
+---
+
+## Use Cases
+
+- **Morning routine:** Read news while having coffee
+- **Stay informed:** Track specific industries or topics
+- **Research:** Search past news for trends
+- **Briefings:** Get quick summaries before meetings
+
+---
+
+## Tips & Tricks
+
+- Use `--limit 3` for a quick 3-headline summary
+- Set up a daily cron job: `0 8 * * * python main.py digest`
+- Bookmark interesting articles by saving the URL from output
+- Use `--category` to filter noise and focus on what matters
 
 ---
 
 ## Troubleshooting
 
-### "No API key configured"
-Run `smf run daily-news-digest --configure` to set up your API key.
-
-### "Invalid API key"
-Double-check your key at https://newsapi.org/account
-
-### "API rate limit exceeded"
-Free tier allows 100 requests/day. If you hit this, wait 24 hours or upgrade at NewsAPI.org.
-
-### No articles showing
-- Check your category names are valid: `business`, `technology`, `science`, `health`, `sports`, `entertainment`, `general`
-- Try a different country code
-- Some categories may have limited content on weekends
+| Problem | Solution |
+|---------|----------|
+| "No stories found" | Check your internet connection or try a different category |
+| "API rate limit" | Wait a few minutes or use `--limit` to reduce requests |
+| Empty digest | Some categories may not have stories on weekends |
 
 ---
 
-## Data & Privacy
+## Requirements
 
-- Your API key is stored locally in `~/.config/smf/skills/`
-- Config file has 600 permissions (owner read/write only)
-- News content comes from NewsAPI.org
-- SMF Works does not store or see your news preferences
+- Python 3.8+
+- OpenClaw installed
+- (Optional) News API key for more sources and better results
 
 ---
 
 ## Support
 
-- **Documentation:** https://smfworks.com/skills/daily-news-digest
-- **Issues:** https://github.com/smfworks/smfworks-skills/issues
-- **NewsAPI Docs:** https://newsapi.org/docs
-
----
-
-*Part of the SMF Works OpenClaw Skills collection*
+- 📖 [Full Documentation](https://smfworks.com/skills/daily-news-digest)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

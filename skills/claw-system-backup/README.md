@@ -1,296 +1,230 @@
-# Claw System Backup - SMF Works Pro Skill
+# Claw System Backup
 
-💾 **Weekly full Linux system backup with compression and verification.**
-
-## Overview
-
-Claw System Backup creates compressed archives of your Linux system. Supports full system, incremental, or home-directory-only backups with automatic retention management.
-
-**Schedule:** Weekly on Sundays at 2:00 AM (configurable)
-**Retention:** 2 weeks (configurable)
-**Tier:** Pro (requires SMF Works subscription + root access)
+> Complete system backup tool for your entire computer
 
 ---
 
-## Requirements
+## What It Does
 
-- **SMF Works Subscription:** Pro tier ($19.99/mo)
-- **Root/Sudo Access:** Required for full system backup
-- **Disk Space:** Sufficient space for backups (typically 1-10 GB)
-- **Linux System:** Any modern Linux distribution
-
----
-
-## What Gets Backed Up
-
-### Backup Types
-
-| Type | Includes | Size | Use Case |
-|------|----------|------|----------|
-| **full** | Entire filesystem | 5-20 GB | Complete disaster recovery |
-| **incremental** | /etc, /home, /root, /boot | 1-5 GB | Recommended for most users |
-| **home-only** | /home directory | 500 MB - 2 GB | Quick user data backup |
-
-### Incremental Backup (Recommended)
-Includes:
-- `/etc` - System configuration
-- `/home` - User home directories
-- `/root` - Root user files
-- `/boot` - Boot files
-- Package databases
-
-**Excluded:**
-- `/proc`, `/sys`, `/dev`, `/run` - Virtual filesystems
-- `/tmp`, `/var/tmp` - Temporary files
-- `/var/cache` - Cache directories
-- Previous backups
+Claw System Backup creates full backups of your system — files, folders, databases, and system configuration — so you can recover from disasters, migrate to new hardware, or simply restore accidentally deleted files. It runs completely locally with no cloud dependencies.
 
 ---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-smf install claw-system-backup
+smfw install claw-system-backup
+```
+
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
 ```
 
 ---
 
 ## Quick Start
 
-### Step 1: Configure
+Run your first backup in seconds:
 
 ```bash
-smf run claw-system-backup --configure
-```
-
-### Step 2: Create First Backup
-
-```bash
-sudo smf run claw-system-backup
-```
-
-### Step 3: Schedule Weekly Backups
-
-```bash
-# Weekly on Sundays at 2:00 AM
-openclaw cron add \
-  --name "claw-system-backup" \
-  --schedule "0 2 * * 0" \
-  --command "sudo smf run claw-system-backup"
+python main.py backup
 ```
 
 ---
 
-## Usage
+## Commands
 
-### Create Backup
+### `backup`
 
+**What it does:** Create a full system backup of all specified paths.
+
+**Usage:**
 ```bash
-sudo smf run claw-system-backup
+python main.py backup [options]
 ```
 
-Output:
-```
-💾 Claw System Backup
-   Type: incremental
-   Destination: ~/.smf/system-backups/system_incremental_20260324_020000.tar.gz
-   Sources: /etc, /home
+**Arguments:**
 
-📦 Creating backup (this may take several minutes)...
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `--dest` | ❌ No | Backup destination folder | `~/Backups` |
+| `--exclude` | ❌ No | Patterns to exclude | `--exclude "*.log"` |
 
-✅ Backup complete!
-   File: system_incremental_20260324_020000.tar.gz
-   Size: 2.34 GB
-   Location: ~/.smf/system-backups/system_incremental_20260324_020000.tar.gz
-
-🔍 Verifying backup...
-   ✅ Backup verified successfully
-   Contains 152,847 files/directories
-
-🧹 Cleaning up old backups...
-✅ Removed 1 old backup(s)
-
-✅ Backup complete!
-```
-
-### List Backups
-
+**Example:**
 ```bash
-smf run claw-system-backup --list
+python main.py backup
+python main.py backup --dest ~/Backups
+python main.py backup --exclude "*.tmp" --exclude "__pycache__"
 ```
 
-Output:
+**Output:**
 ```
-💾 System Backups (3 total):
-
-1. system_incremental_20260324_020000.tar.gz
-   Created: 2026-03-24 02:00
-   Size: 2.34 GB
-   Path: ~/.smf/system-backups/system_incremental_20260324_020000.tar.gz
-
-2. system_incremental_20260317_020000.tar.gz
-   Created: 2026-03-17 02:00
-   Size: 2.28 GB
-
-Total size: 6.96 GB
-```
-
-### Verify Backup
-
-```bash
-smf run claw-system-backup --verify ~/.smf/system-backups/system_incremental_20260324_020000.tar.gz
-```
-
-### Restore (Advanced)
-
-**Warning:** Restore operations can overwrite system files. Use with caution.
-
-```bash
-# Boot from live USB first, then:
-smf run claw-system-backup --restore ~/.smf/system-backups/system_full_20260324_020000.tar.gz
+✅ Backup created successfully!
+   ID: BACKUP-20260320-143052
+   Location: ~/.claw-backups/BACKUP-20260320-143052/
+   Size: 2.3 GB
+   Files: 15,432
 ```
 
 ---
 
-## Configuration
+### `list`
 
-### Configuration File
+**What it does:** Display all existing backups with their status and size.
 
-```
-~/.config/smf/skills/claw-system-backup/config.json
-```
-
-### Example Configuration
-
-```json
-{
-  "backup_dir": "~/.smf/system-backups",
-  "retention_weeks": 2,
-  "backup_type": "incremental",
-  "exclude_paths": [
-    "/proc",
-    "/sys",
-    "/dev",
-    "/run",
-    "/tmp",
-    "/var/cache"
-  ],
-  "include_home": true,
-  "include_etc": true,
-  "compression": "gzip",
-  "verify": true
-}
-```
-
-### Configuration Options
-
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `backup_dir` | No | `~/.smf/system-backups` | Where to store backups |
-| `retention_weeks` | No | `2` | How many weeks to keep |
-| `backup_type` | No | `incremental` | full, incremental, home-only |
-| `compression` | No | `gzip` | gzip, bzip2, xz, none |
-| `verify` | No | `true` | Verify after creation |
-
----
-
-## Scheduling
-
-### Weekly with OpenClaw Cron
-
+**Usage:**
 ```bash
-# Sundays at 2:00 AM
-openclaw cron add \
-  --name "claw-system-backup" \
-  --schedule "0 2 * * 0" \
-  --command "sudo smf run claw-system-backup"
+python main.py list
 ```
 
-### System Cron
-
+**Example:**
 ```bash
-crontab -e
+python main.py list
+```
 
-# Weekly backup
-0 2 * * 0 /usr/local/bin/smf run claw-system-backup
+**Output:**
+```
+📦 Available Backups:
+------------------------------------------------------------
+1. BACKUP-20260320-143052 | 2.3 GB | 15,432 files | 2026-03-20 14:30
+2. BACKUP-20260319-120000 | 2.1 GB | 14,891 files | 2026-03-19 12:00
+3. BACKUP-20260318-080000 | 2.0 GB | 14,102 files | 2026-03-18 08:00
 ```
 
 ---
 
-## Restore Process
+### `restore`
 
-### Emergency System Restore
+**What it does:** Restore files from a previous backup.
 
-**Prerequisites:**
-- Boot from Linux live USB/DVD
-- Mount backup drive
-- Root shell
-
+**Usage:**
 ```bash
-# 1. Mount backup drive
-mkdir /mnt/backup
-mount /dev/sdb1 /mnt/backup
-
-# 2. Mount target filesystem
-mkdir /mnt/target
-mount /dev/sda1 /mnt/target
-
-# 3. Restore
-smf run claw-system-backup --restore /mnt/backup/system_full_20260324_020000.tar.gz
-
-# 4. Reinstall bootloader
-grub-install /dev/sda
-update-grub
+python main.py restore [backup-id]
 ```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `backup-id` | ✅ Yes | ID of backup to restore | `BACKUP-20260320-143052` |
+
+**Example:**
+```bash
+python main.py restore BACKUP-20260320-143052
+```
+
+**Output:**
+```
+🔄 Restoring from BACKUP-20260320-143052...
+   Restored: 15,432 files
+   Location: ~/.claw-backups/BACKUP-20260320-143052/
+✅ Restore complete!
+```
+
+---
+
+### `status`
+
+**What it does:** Show current backup status and what would be included in next backup.
+
+**Usage:**
+```bash
+python main.py status
+```
+
+**Example:**
+```bash
+python main.py status
+```
+
+**Output:**
+```
+📊 Backup Status:
+   Last backup: 2026-03-20 14:30 (2 hours ago)
+   Next scheduled: 2026-03-21 02:00
+   Files to backup: ~15,500
+   Estimated size: 2.3 GB
+```
+
+---
+
+### `schedule`
+
+**What it does:** Set up automatic backup schedule using cron.
+
+**Usage:**
+```bash
+python main.py schedule [cron-expression]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `cron-expression` | ✅ Yes | Standard cron format | `"0 2 * * *"` |
+
+**Example:**
+```bash
+# Daily at 2 AM
+python main.py schedule "0 2 * * *"
+
+# Weekly on Sunday at 3 AM
+python main.py schedule "0 3 * * 0"
+
+# Every 6 hours
+python main.py schedule "0 */6 * * *"
+```
+
+---
+
+## Use Cases
+
+- **Disaster recovery:** Restore your system after hardware failure
+- **Migration:** Move to a new computer by restoring your backup
+- **Accidental deletion:** Recover files you accidentally deleted
+- **Before major changes:** Create a backup before system updates
+- **Archive old state:** Keep historical snapshots of your system
+
+---
+
+## Tips & Tricks
+
+- Run `python main.py status` before backups to estimate size and time
+- Use `--exclude` patterns to skip large temporary files
+- Set up scheduled backups with `schedule` for hands-off protection
+- Store backups on an external drive for true disaster recovery
+- Test restores periodically to ensure your backups work
 
 ---
 
 ## Troubleshooting
 
-### "Permission denied"
-
-Run with sudo:
-```bash
-sudo smf run claw-system-backup
-```
-
-### "No space left on device"
-
-```bash
-# Check space
-df -h ~/.smf/system-backups
-
-# Clean up old backups
-smf run claw-system-backup --cleanup
-
-# Move backup location
-smf run claw-system-backup --configure
-# Set backup_dir to external drive
-```
-
-### "Command not found: tar"
-
-```bash
-# Install tar
-sudo apt-get install tar
-```
+| Problem | Solution |
+|---------|----------|
+| "Backup destination full" | Free up space or specify a different `--dest` |
+| "Permission denied" | Run with appropriate permissions |
+| Backup too large | Use `--exclude` to skip logs, cache, temp files |
+| Restore fails | Ensure backup ID is correct; check disk space |
 
 ---
 
-## Data & Privacy
+## Requirements
 
-- **All operations are local** - No data leaves your machine
-- **No external APIs** - No cloud services
-- **Compression** - Reduces size and obscures contents
-- **You control location** - External drives, NAS, etc.
+- Python 3.8+
+- OpenClaw installed
+- Sufficient disk space for backups
+- (Optional) `rsync` for efficient incremental backups
 
 ---
 
 ## Support
 
-- **Documentation:** https://smfworks.com/skills/claw-system-backup
-- **Issues:** https://github.com/smfworks/smfworks-skills/issues
-
----
-
-*Powered by SMF Works | Pro Skill | Local-First*
+- 📖 [Full Documentation](https://smfworks.com/skills/claw-system-backup)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)

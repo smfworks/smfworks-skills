@@ -1,108 +1,229 @@
-# QR Code Generator
+# QR Generator
 
-A QR code generation skill for OpenClaw. Create QR codes for URLs, WiFi, emails, and more.
+> Generate QR codes for URLs, WiFi, email, contacts, and more — in PNG or SVG format
 
-## Features
+---
 
-- **URL QR Codes**: Link to websites
-- **WiFi QR Codes**: Share network credentials
-- **Email QR Codes**: Pre-filled email messages
-- **Contact QR Codes**: vCard format
-- **Phone/SMS QR Codes**: Quick dial or text
-- **Multiple Formats**: PNG, SVG, JPEG output
+## What It Does
+
+QR Generator creates scannable QR codes for all kinds of data — website URLs, WiFi network credentials, email addresses, phone numbers, vCard contacts, and SMS messages. Output as PNG or SVG files, ready to print or share.
+
+---
 
 ## Installation
 
+This skill is available from the SMF Works Skills Repository.
+
+**Free tier:**
 ```bash
-pip install qrcode[pil]
+smfw install qr-generator
 ```
 
-## Usage
+**Or clone directly:**
+```bash
+git clone https://github.com/smfworks/smfworks-skills
+cd smfworks-skills
+python install.sh
+```
 
-### URL QR Code
+---
+
+## Quick Start
+
+Generate a QR code for a website:
+
 ```bash
 python main.py url https://smf.works
-python main.py url https://smf.works qr-code.png
 ```
 
-### WiFi QR Code
+---
+
+## Commands
+
+### `url`
+
+**What it does:** Generate QR code for a URL/website.
+
+**Usage:**
+```bash
+python main.py url [url] [output-file]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `url` | ✅ Yes | Website URL | `https://smf.works` |
+| `output-file` | ❌ No | Output file (default: qr-code.png) | `website.png` |
+
+**Example:**
+```bash
+python main.py url https://smf.works
+python main.py url https://smf.works website-qr.png
+```
+
+---
+
+### `wifi`
+
+**What it does:** Generate QR code for WiFi network credentials.
+
+**Usage:**
+```bash
+python main.py wifi [ssid] [password] [output-file]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `ssid` | ✅ Yes | Network name | `MyNetwork` |
+| `password` | ✅ Yes | WiFi password | `password123` |
+| `output-file` | ❌ No | Output file (default: wifi.png) | `wifi-qr.png` |
+
+**Example:**
 ```bash
 python main.py wifi "MyNetwork" "password123"
-python main.py wifi "MyNetwork" "password123" wifi-qr.png
+python main.py wifi "GuestNetwork" "Welcome2024!" guest-wifi.png
 ```
 
-### Email QR Code
+---
+
+### `email`
+
+**What it does:** Generate QR code for an email address.
+
+**Usage:**
+```bash
+python main.py email [address] [output-file]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `address` | ✅ Yes | Email address | `hello@example.com` |
+| `output-file` | ❌ No | Output file | `email-qr.png` |
+
+**Example:**
 ```bash
 python main.py email hello@example.com
-python main.py email hello@example.com contact-email.png
 ```
 
-### Phone QR Code
+---
+
+### `phone`
+
+**What it does:** Generate QR code for a phone number.
+
+**Usage:**
+```bash
+python main.py phone [number] [output-file]
+```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `number` | ✅ Yes | Phone number | `+1234567890` |
+| `output-file` | ❌ No | Output file | `phone-qr.png` |
+
+**Example:**
 ```bash
 python main.py phone "+1234567890"
 ```
 
-### vCard Contact
+---
+
+### `vcard`
+
+**What it does:** Generate QR code for a contact (vCard format).
+
+**Usage:**
 ```bash
-python main.py vcard "John Doe" "+1234567890"
-python main.py vcard "John Doe" "+1234567890" "john@example.com"
+python main.py vcard [name] [phone] [email] [output-file]
 ```
 
-### SMS QR Code
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `name` | ✅ Yes | Full name | `John Doe` |
+| `phone` | ✅ Yes | Phone number | `+1234567890` |
+| `email` | ❌ No | Email address | `john@email.com` |
+| `output-file` | ❌ No | Output file | `contact.png` |
+
+**Example:**
 ```bash
-python main.py sms "+1234567890"
-python main.py sms "+1234567890" "Hello!"
+python main.py vcard "Jane Doe" "+15551234567" "jane@email.com"
 ```
 
-## Input Validation Limits
+---
 
-| Parameter | Limit |
-|-----------|-------|
-| Maximum data length | 2,000 characters |
-| Maximum QR size | 40 (box_size) |
-| Maximum border | 10 boxes |
-| SSID length | 32 characters |
-| WiFi password | 63 characters |
-| Output formats | PNG, SVG, JPG, JPEG |
-| Phone validation | Digits, +, -, spaces, parentheses |
+### `sms`
 
-## Security Considerations
+**What it does:** Generate QR code for SMS message.
 
-- **Data Sanitization**: Removes shell metacharacters from input
-- **Path Traversal Protection**: Sanitizes output filenames
-- **URL Validation**: Only allows http, https, mailto, tel schemes
-- **Command Injection Prevention**: Blocks dangerous characters
-- **Filename Sanitization**: Removes non-alphanumeric characters
-- **Null Byte Protection**: Rejects null bytes in data
-
-## Error Handling
-
-Errors are categorized:
-- **ImportError**: qrcode library not installed
-- **ValueError**: Invalid URL format or data
-- **OSError**: Cannot create output directory
-- **Security Error**: Dangerous patterns detected
-
-## Known Limitations
-
-- Maximum 2,000 characters of data
-- Requires qrcode library with PIL support
-- Large data results in dense QR codes
-- WiFi format follows de facto standard (not officially standardized)
-- SSID/password escaping for WiFi may vary by device
-
-## Examples
-
+**Usage:**
 ```bash
-# Share your website
-python main.py url https://smf.works
-
-# Share WiFi credentials
-python main.py wifi "GuestNetwork" "Welcome2024!"
-
-# Create contact card
-python main.py vcard "Jane Smith" "+15551234567" "jane@example.com"
-
-# Quick SMS
-python main.py sms "+15551234567" "Call me back!"
+python main.py sms [phone] [message] [output-file]
 ```
+
+**Arguments:**
+
+| Argument | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `phone` | ✅ Yes | Phone number | `+1234567890` |
+| `message` | ❌ No | Pre-filled message | `Hello!` |
+| `output-file` | ❌ No | Output file | `sms-qr.png` |
+
+**Example:**
+```bash
+python main.py sms "+1234567890" "Call me back!"
+```
+
+---
+
+## Use Cases
+
+- **Share WiFi:** Guests scan to connect without typing passwords
+- **Contact cards:** Share your info at networking events
+- **Business cards:** Include on printed materials
+- **Payments:** Link to payment or donation pages
+- **Product info:** Link to product pages from catalogs
+
+---
+
+## Tips & Tricks
+
+- Print WiFi QR codes for guests at home or office
+- Use vCard for easy contact sharing at events
+- Keep QR codes simple — shorter URLs scan faster
+- Test your QR codes with multiple scanners before printing
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| "qrcode not installed" | Run `pip install qrcode[pil]` |
+| QR won't scan | Make sure there's enough contrast |
+| WiFi QR doesn't work | Ensure SSID and password are exact |
+| Invalid URL | Must include http:// or https:// |
+
+---
+
+## Requirements
+
+- Python 3.8+
+- OpenClaw installed
+- qrcode library (`pip install qrcode[pil]`)
+
+---
+
+## Support
+
+- 📖 [Full Documentation](https://smfworks.com/skills/qr-generator)
+- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [SMF Works](https://smfworks.com)
