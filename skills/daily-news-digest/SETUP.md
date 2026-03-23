@@ -54,7 +54,7 @@ Check your inbox for a confirmation email from NewsAPI. Click the verification l
 **3d — Find your API key:**  
 After confirming, log in and go to your dashboard at [newsapi.org/account](https://newsapi.org/account). Your API key is displayed there. It looks like this:
 ```
-a1b2c3d4e5f67890a1b2c3d4e5f67890
+YOUR_NEWSAPI_KEY_HERE
 ```
 
 **3e — Save your key somewhere temporarily** (you'll paste it into the configuration wizard in Step 6).
@@ -175,7 +175,7 @@ cat ~/.config/smf/skills/daily-news-digest/config.json
 Sample content:
 ```json
 {
-  "api_key": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
+  "api_key": "YOUR_NEWSAPI_KEY_HERE",
   "categories": ["technology", "science"],
   "country": "us",
   "max_articles": 5

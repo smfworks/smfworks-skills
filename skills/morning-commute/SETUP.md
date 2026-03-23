@@ -37,7 +37,7 @@ openclaw auth status
 4. Search "Directions API" → Enable it
 5. Go to APIs & Services → Credentials
 6. Click "Create Credentials" → "API Key"
-7. Copy the key — it looks like: `AIzaSyD1a2b3c4d5e6f7g8h9i0j`
+7. Copy the key — it looks like: `YOUR_GMAPS_API_KEY_HERE`
 8. (Recommended) Restrict the key to the Directions API only
 
 **Cost:** Google gives $200/month free credit. A daily commute check costs ~$0.005 — well within free tier.
@@ -110,7 +110,7 @@ Your configuration is saved at:
 Sample configuration:
 ```json
 {
-  "google_maps_api_key": "AIzaSyD1a2b3c4d5e6f7g8h9i0j",
+  "google_maps_api_key": "YOUR_GMAPS_API_KEY_HERE",
   "home_address": "123 Main St, New York, NY 10001",
   "work_address": "456 Business Ave, New York, NY 10002",
   "departure_time": "08:00",
