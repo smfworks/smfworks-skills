@@ -205,6 +205,43 @@ A: Yes — configure the backup directory to point to your external drive path v
 
 ---
 
+---
+
+## What Gets Backed Up
+
+The backup covers your entire `~/.openclaw/workspace` directory, which includes:
+
+| File/Folder | Description |
+|-------------|-------------|
+| `MEMORY.md` | Your long-term curated memory |
+| `SOUL.md` | Your agent's identity and values |
+| `AGENTS.md` | Workspace conventions and rules |
+| `USER.md` | Information about you |
+| `IDENTITY.md` | Agent name and persona |
+| `TOOLS.md` | Local environment notes |
+| `memory/` | Daily memory log files |
+| `HEARTBEAT.md` | Heartbeat configuration |
+| Any custom files | Documents, scripts, notes you've stored |
+
+OpenClaw's installation files and the skills repository itself are NOT backed up — only your personal workspace data.
+
+---
+
+## Backup File Format
+
+Backups are `.tar.gz` archives. You can inspect or extract them manually:
+
+```bash
+# List contents of a backup
+tar -tzf /path/to/backup.tar.gz
+
+# Extract to a specific directory for inspection
+mkdir /tmp/backup-inspect
+tar -xzf /path/to/backup.tar.gz -C /tmp/backup-inspect
+```
+
+---
+
 ## Requirements
 
 | Requirement | Value |
