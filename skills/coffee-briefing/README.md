@@ -186,8 +186,47 @@ A: Yes — the briefing includes tomorrow's forecast in the weather section.
 
 ---
 
+---
+
+## Automation
+
+Schedule your briefing to run automatically every morning:
+
+```bash
+# Add to crontab (crontab -e)
+0 7 * * 1-5 cd /home/yourname/smfworks-skills/skills/coffee-briefing && python3 main.py > /home/yourname/Briefings/briefing-$(date +\%Y-\%m-\%d).txt 2>&1
+```
+
+Or add it to your shell startup for a briefing every time you open a terminal:
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+python3 ~/smfworks-skills/skills/coffee-briefing/main.py
+```
+
+---
+
+## Combining with Other Skills
+
+**Coffee Briefing + Morning Commute:** Full morning picture — weather, calendar, and commute times:
+
+```bash
+python3 ~/smfworks-skills/skills/coffee-briefing/main.py
+python3 ~/smfworks-skills/skills/morning-commute/main.py
+```
+
+**Coffee Briefing + Task Manager:** See your day's meetings and your task board together:
+
+```bash
+python3 main.py
+python3 ~/smfworks-skills/skills/task-manager/main.py board
+```
+
+---
+
 ## Support
 
 - 📖 [Documentation](https://smfworks.com/skills/coffee-briefing)
 - 🔑 [Subscribe](https://smfworks.com/subscribe)
 - 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
