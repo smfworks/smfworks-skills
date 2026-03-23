@@ -97,3 +97,25 @@ No configuration needed. All options are passed as command arguments.
 ## Next Steps
 
 See **HOWTO.md** for walkthroughs on disk checks, large-file scanning, health monitoring, and cron automation.
+
+---
+
+## Quick Reference
+
+Once setup is complete, the most useful commands are:
+
+```bash
+# Daily health check
+python3 main.py health
+
+# Check disk space
+python3 main.py disk
+
+# Check memory
+python3 main.py memory
+
+# Find large files in your home directory
+python3 main.py large-files ~ 10
+```
+
+These four commands cover 90% of everyday use cases.
