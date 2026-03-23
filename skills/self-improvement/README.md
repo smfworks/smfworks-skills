@@ -1,241 +1,273 @@
-# Self-Improvement
+# Self Improvement
 
-> Log errors, learnings, and insights for continuous improvement — coding agents process these into fixes
+> Log errors, learnings, and insights from your work — then search, review, and promote the most valuable lessons to your agent's long-term memory.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Version:** 1.0  
+**Category:** Productivity / Knowledge Management
 
 ---
 
 ## What It Does
 
-Self-Improvement builds a knowledge base of your errors, learnings, and insights over time. Log what goes wrong, what you learn, and what insights you gain. Coding agents can process these logs to identify patterns and promote important items to your project memory.
+Self Improvement is an OpenClaw Pro skill for building a personal knowledge base from your work. Log errors you made and how you resolved them, document learnings and best practices, record insights. Search your log, view statistics, and promote the most valuable items to your agent's `promoted.md` memory file for long-term retention.
+
+This is particularly powerful combined with OpenClaw — your logged learnings can become part of your agent's memory.
+
+**What it does NOT do:** It does not automatically analyze your work, integrate with IDEs or error monitoring tools, or sync to external knowledge bases.
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Pro tier:**
 ```bash
-smfw install self-improvement
-smf login
-```
-
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/self-improvement
+python3 main.py help
 ```
 
 ---
 
 ## Quick Start
 
-Log an error you just encountered:
+Log a learning from today's work:
 
 ```bash
-smf run self-improvement log-error "File not found" --context "Reading config.json"
+python3 main.py log-learning "Always validate JSON config files before loading" --tags config,python
+```
+
+Output:
+```
+✅ Learning logged: LRN-20240315-A1B2C3
+   Category: best-practice
+   Tags: config, python
 ```
 
 ---
 
-## Commands
+## Command Reference
 
-### `log-error`
+### `log-error "description"`
 
-**What it does:** Log an error with context, severity, and resolution.
+Logs an error you encountered, with optional context, severity, and resolution.
 
-**Usage:**
 ```bash
-smf run self-improvement log-error [description] [options]
+python3 main.py log-error "File not found" --context "Reading config file" --severity high --resolution "Added file existence check" --tags config,file-io
 ```
 
-**Arguments:**
+Output:
+```
+✅ Error logged: ERR-20240315-A1B2C3
+   Context: Reading config file
+   Severity: high
+   Resolution: Added file existence check
+```
 
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `description` | ✅ Yes | Error description | `File not found` |
+**Severity levels:** `low`, `medium`, `high`, `critical`
 
-**Options:**
+---
 
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--context` | ❌ No | What were you doing | `--context "Reading config"` |
-| `--severity` | ❌ No | low/medium/high/critical | `--severity high` |
-| `--tags` | ❌ No | Comma-separated tags | `--tags "file-io,config"` |
-| `--resolution` | ❌ No | How you fixed it | `--resolution "Added check"` |
-| `--prevention` | ❌ No | How to prevent | `--prevention "Validate path"` |
+### `log-learning "insight"`
 
-**Example:**
+Logs a learning, best practice, or technique you discovered.
+
 ```bash
-smf run self-improvement log-error "JSON parse error" --context "API response" --severity medium --tags "json,api"
+python3 main.py log-learning "Use pathlib instead of os.path for file operations in Python 3" --category best-practice --tags python,files
 ```
 
 ---
 
-### `log-learning`
+### `log-insight "title"`
 
-**What it does:** Log an insight or best practice you discovered.
+Logs a broader insight or architectural observation.
 
-**Usage:**
 ```bash
-smf run self-improvement log-learning [insight] [options]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `insight` | ✅ Yes | What you learned | `Validate JSON first` |
-
-**Options:**
-
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--category` | ❌ No | Category type | `--category best-practice` |
-| `--context` | ❌ No | When does this apply | `--context "API calls"` |
-| `--tags` | ❌ No | Comma-separated tags | `--tags "python,json"` |
-
-**Categories:** `best-practice`, `pattern`, `anti-pattern`, `optimization`, `architecture`, `other`
-
-**Example:**
-```bash
-smf run self-improvement log-learning "Use pathlib instead of os.path" --category best-practice
+python3 main.py log-insight "Database indexes should always be created before bulk inserts" --category optimization --tags database,performance
 ```
 
 ---
 
 ### `list`
 
-**What it does:** List all logged items with optional filters.
+Lists all logged items, optionally filtered by category.
 
-**Usage:**
 ```bash
-smf run self-improvement list [options]
+python3 main.py list
+python3 main.py list --category errors
+python3 main.py list --category learnings
 ```
 
-**Options:**
+Output:
+```
+📋 Self Improvement Log (24 items)
 
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--type` | ❌ No | Filter by type | `--type error` |
-| `--status` | ❌ No | Filter by status | `--status open` |
-| `--category` | ❌ No | Filter by category | `--category best-practice` |
-
-**Example:**
-```bash
-smf run self-improvement list
-smf run self-improvement list --type error
-smf run self-improvement list --category best-practice
+ERR-20240315-A1B2 [high] File not found — config, file-io
+ERR-20240314-B3C4 [medium] Import error — python, dependencies
+LRN-20240315-C5D6 [best-practice] Use pathlib — python, files
+LRN-20240313-E7F8 [pattern] Early return reduces nesting — python, style
 ```
 
 ---
 
-### `search`
+### `search "query"`
 
-**What it does:** Search all logged items by keyword.
+Searches all logged items by content.
 
-**Usage:**
 ```bash
-smf run self-improvement search [keyword]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `keyword` | ✅ Yes | Search term | `json` |
-
-**Example:**
-```bash
-smf run self-improvement search "config"
+python3 main.py search "config"
+python3 main.py search "database"
 ```
 
 ---
 
-### `show`
+### `show ITEM-ID`
 
-**What it does:** Display full details of a specific item.
+Shows full details for a logged item.
 
-**Usage:**
 ```bash
-smf run self-improvement show [item-id]
+python3 main.py show ERR-20240315-A1B2C3
 ```
 
-**Example:**
-```bash
-smf run self-improvement show ERR-20260320-ABC123
+Output:
+```
+📋 Error: ERR-20240315-A1B2C3
+
+Description: File not found when reading config
+Context: Reading config file at startup
+Severity: high
+Resolution: Added file existence check before open()
+Prevention: Validate config path in __init__
+Tags: config, file-io
+Logged: 2024-03-15 09:42
 ```
 
 ---
 
-### `promote`
+### `promote ITEM-ID`
 
-**What it does:** Promote an important item to your project memory.
+Promotes a high-value item to `~/.smf/improvement/promoted.md` — your persistent learning file that can be loaded by your agent.
 
-**Usage:**
 ```bash
-smf run self-improvement promote [item-id]
+python3 main.py promote LRN-20240315-C5D6
 ```
 
-**Example:**
-```bash
-smf run self-improvement promote LRN-20260320-DEF456
+Output:
+```
+✅ Promoted to memory: LRN-20240315-C5D6
+   Written to: ~/.smf/improvement/promoted.md
 ```
 
 ---
 
 ### `stats`
 
-**What it does:** Display improvement statistics.
+Shows statistics on your improvement log.
 
-**Usage:**
 ```bash
-smf run self-improvement stats
+python3 main.py stats
+```
+
+Output:
+```
+📊 Self Improvement Statistics
+
+Total items: 47
+  Errors: 18
+  Learnings: 21
+  Insights: 8
+
+By severity (errors):
+  Critical: 2
+  High: 7
+  Medium: 6
+  Low: 3
+
+Top tags: python (12), database (8), config (7), api (5)
+Promoted: 9 items
 ```
 
 ---
 
 ## Use Cases
 
-- **Error tracking:** Log bugs and their solutions for future reference
-- **Learning journal:** Record insights and best practices
-- **Knowledge base:** Build a searchable database of solutions
-- **Agent training:** Help coding agents avoid past mistakes
-- **Retrospectives:** Provide data for team retrospectives
+### 1. Daily error journal
+
+Log every significant error you hit during a work session with context and resolution.
+
+### 2. Best practices capture
+
+When you discover a better way to do something, log it immediately: `log-learning`
+
+### 3. Build agent memory from experience
+
+Promote your best learnings to `promoted.md`, then reference this file from your OpenClaw agent for context-aware assistance.
+
+### 4. Weekly review
+
+Run `stats` and `list` to review your week's errors and learnings — identify patterns and areas for growth.
 
 ---
 
-## Tips & Tricks
+## Storage Structure
 
-- Log errors immediately while context is fresh
-- Use tags consistently for better search results
-- Promote important learnings to project memory
-- Review weekly to identify patterns
-- Use categories to organize learnings
+```
+~/.smf/improvement/
+├── errors/        — Logged errors (one JSON per item)
+├── learnings/     — Logged learnings
+├── insights/      — Logged insights
+└── promoted.md    — Promoted items in Markdown format
+```
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "Subscription required" | Run `smf login` to activate Pro access |
-| "Item not found" | Check the item ID from `list` output |
-| Empty search results | Try different keywords or check spelling |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+### `Item not found: ERR-XYZ`
+**Fix:** IDs are case-sensitive. Use `python3 main.py list` to find the exact ID.
+
+### `promoted.md is getting very large`
+**Fix:** Review and curate `promoted.md` periodically. Remove items that are no longer relevant.
+
+---
+
+## FAQ
+
+**Q: What's the difference between `log-error`, `log-learning`, and `log-insight`?**  
+A: Errors are mistakes or failures you encountered. Learnings are new knowledge or techniques you acquired. Insights are broader observations about systems, architecture, or strategy.
+
+**Q: What does "promote" do?**  
+A: Promoted items are written to `~/.smf/improvement/promoted.md` in Markdown format. This file can be loaded by your OpenClaw agent as part of its context, making your learnings available to AI assistance.
+
+**Q: Are there limits on how much I can log?**  
+A: Yes — there are configurable maximum counts per category to prevent excessive storage use. Check the source code for the current limits.
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- Pro subscription
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| SMF Works Pro | Required ($19.99/mo) |
+| External APIs | None |
+| Internet | For subscription check only |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/self-improvement)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/self-improvement)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
