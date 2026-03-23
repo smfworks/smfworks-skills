@@ -292,6 +292,8 @@ export NEWSAPI_KEY="your-key-here"
 ## Next Steps
 
 Setup is verified and working. See **HOWTO.md** for complete usage walkthroughs:
+
+Note: If you ever need to reset your configuration (e.g., you have a new API key), simply run `--configure` again and it will overwrite the saved settings.
 - How to customize your categories
 - How to schedule a daily briefing with cron
 - How to get JSON output for scripting
