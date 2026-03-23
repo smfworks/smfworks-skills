@@ -188,6 +188,32 @@ A: Yes — the briefing includes tomorrow's forecast in the weather section.
 
 ---
 
+## Detailed Output Breakdown
+
+### Weather Section
+
+The weather section shows:
+- **Current conditions:** Temperature and sky conditions (sunny, cloudy, rainy, etc.)
+- **Today's forecast:** High and low temperatures, precipitation outlook
+- **Tomorrow:** Next-day summary so you can plan ahead (umbrella? extra layer?)
+
+The temperature unit (°F or °C) is set during `--configure`. You can change it any time by re-running the wizard.
+
+### Calendar Section
+
+Shows today's events from your connected Google Calendar:
+- Event name and time
+- Duration
+- Location (if set in the calendar event)
+
+Events are shown in chronological order. If you have multiple Google calendars, all are included by default.
+
+### News Headlines
+
+Shows 3–5 top headlines from your configured categories (technology, business, health, etc.). Headlines include the source name. Click the URL shown to read the full article.
+
+---
+
 ## Automation
 
 Schedule your briefing to run automatically every morning:
