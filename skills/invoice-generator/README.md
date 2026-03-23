@@ -1,235 +1,287 @@
 # Invoice Generator
 
-> Create professional invoices and track payments — no accounting software needed
+> Create professional invoices, manage clients, record payments, export to HTML, and generate financial reports — from the terminal.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Version:** 1.0  
+**Category:** Business / Finance
 
 ---
 
 ## What It Does
 
-Invoice Generator creates clean, professional invoices for freelancers and small businesses. Add line items, apply tax, track payment status, and export to PDF. Everything runs locally — no subscriptions or cloud services.
+Invoice Generator is an OpenClaw Pro skill for freelancers and small businesses to manage invoicing from the command line. Add clients, create itemized invoices, record payments, export invoices as HTML, and run monthly financial reports. Uses proper Decimal arithmetic for accurate currency calculations.
+
+**What it does NOT do:** It does not send invoices by email automatically, integrate with accounting software (QuickBooks, Xero), accept online payments, or generate PDF files directly (convert HTML output to PDF manually).
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Free tier:**
 ```bash
-smfw install invoice-generator
-```
-
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/invoice-generator
+python3 main.py help
 ```
 
 ---
 
 ## Quick Start
 
-Create your first invoice:
-
 ```bash
-python main.py create --client "Acme Corp" --items "Consulting,150,10"
+# Add a client
+python3 main.py client add "Acme Corp"
+
+# Create an invoice
+python3 main.py create --client "Acme" --item "Web Design:3000" --item "SEO Audit:500"
+
+# List invoices
+python3 main.py list
+
+# Export to HTML
+python3 main.py export INV-202403-ABC123
 ```
 
 ---
 
-## Commands
+## Command Reference
+
+### `client add "Name"`
+
+Adds a new client.
+
+```bash
+python3 main.py client add "Acme Corp"
+python3 main.py client add "TechStartup Inc"
+```
+
+Output:
+```
+✅ Client added: Acme Corp (acme-corp)
+```
+
+---
+
+### `client list`
+
+Lists all clients.
+
+```bash
+python3 main.py client list
+```
+
+Output:
+```
+Clients (3 total):
+1. Acme Corp (acme-corp) — 4 invoices, $12,500 total
+2. TechStartup Inc (techstartup-inc) — 2 invoices, $6,200 total
+3. Freelance Client (freelance-client) — 1 invoice, $1,800 total
+```
+
+---
 
 ### `create`
 
-**What it does:** Create a new invoice with line items.
+Creates an invoice. Interactive if no flags; flags for quick creation.
 
-**Usage:**
 ```bash
-python main.py create --client [name] --items [items]
+python3 main.py create                                    # Interactive
+python3 main.py create --client "Acme Corp"              # With client
+python3 main.py create --client "Acme" --item "Design:1500" --item "Revisions:300"
 ```
 
-**Arguments:**
+**`--item` format:** `"Description:Amount"` (amount in USD)
 
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `--client` | ✅ Yes | Client name | `--client "Acme Corp"` |
-| `--items` | ✅ Yes | Items as "name,price,qty" (comma-separated) | `--items "Service,100,1"` |
-
-**Options:**
-
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--tax` | ❌ No | Tax rate percentage | `--tax 10` |
-| `--due` | ❌ No | Due date (YYYY-MM-DD) | `--due 2026-04-01` |
-| `--notes` | ❌ No | Additional notes | `--notes "Thank you!"` |
-
-**Example:**
-```bash
-python main.py create --client "Acme Corp" --items "Consulting,150,10"
-python main.py create --client "Jane Doe" --items "Design,75,20,Web design work" --tax 8.5
+Output:
 ```
+✅ Invoice created: INV-202403-ABC123
 
-**Output:**
-```
-✅ Invoice created: INV-001
    Client: Acme Corp
-   Amount: $1,500.00
-   Due: 2026-04-01
-   Status: pending
+   Items:
+     Web Design         $1,500.00
+     Revisions          $  300.00
+   ─────────────────────────────────
+   Total:               $1,800.00
 
-To view: python main.py show INV-001
-To export PDF: python main.py pdf INV-001
+   Status: unpaid
+   Due: 2024-04-14 (30 days)
 ```
 
 ---
 
 ### `list`
 
-**What it does:** Display all invoices with status.
+Lists all invoices, with optional status filter.
 
-**Usage:**
 ```bash
-python main.py list
+python3 main.py list
+python3 main.py list --status unpaid
+python3 main.py list --status paid
 ```
 
-**Example:**
-```bash
-python main.py list
+Output:
 ```
+Invoices (8 total):
 
-**Output:**
-```
-📋 Invoices:
-------------------------------------------------------------
-INV-001 | Acme Corp    | $1,500.00 | pending  | Due: 2026-04-01
-INV-002 | Jane Doe     | $600.00   | paid     | Paid: 2026-03-15
-INV-003 | Bob Smith    | $225.00   | overdue  | Due: 2026-03-01
+INV-202403-ABC123 — Acme Corp — $1,800.00 — UNPAID — Due 2024-04-14
+INV-202403-DEF456 — TechStartup — $3,500.00 — PAID — 2024-03-20
+INV-202402-GHI789 — Acme Corp — $2,400.00 — PAID — 2024-03-01
 ```
 
 ---
 
-### `show`
+### `show INV-ID`
 
-**What it does:** Display full invoice details.
+Shows full invoice details.
 
-**Usage:**
 ```bash
-python main.py show [invoice-id]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `invoice-id` | ✅ Yes | Invoice ID to display | `INV-001` |
-
-**Example:**
-```bash
-python main.py show INV-001
+python3 main.py show INV-202403-ABC123
 ```
 
 ---
 
-### `pdf`
+### `pay INV-ID`
 
-**What it does:** Export an invoice to PDF format.
+Records a payment for an invoice.
 
-**Usage:**
 ```bash
-python main.py pdf [invoice-id] [options]
+python3 main.py pay INV-202403-ABC123
+python3 main.py pay INV-202403-ABC123 --amount 900.00
 ```
 
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `invoice-id` | ✅ Yes | Invoice ID to export | `INV-001` |
-
-**Options:**
-
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--output` | ❌ No | Output file path | `--output invoice.pdf` |
-
-**Example:**
-```bash
-python main.py pdf INV-001
-python main.py pdf INV-001 --output ~/invoices/INV-001.pdf
+Output:
+```
+✅ Payment recorded: INV-202403-ABC123
+   Amount: $1,800.00
+   Status: paid
+   Paid date: 2024-03-25
 ```
 
 ---
 
-### `mark`
+### `export INV-ID --html`
 
-**What it does:** Update invoice payment status.
+Exports an invoice as an HTML file, ready to print or convert to PDF.
 
-**Usage:**
 ```bash
-python main.py mark [invoice-id] [options]
+python3 main.py export INV-202403-ABC123 --html
 ```
 
-**Arguments:**
+Output:
+```
+✅ Invoice exported: INV-202403-ABC123.html
+```
 
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `invoice-id` | ✅ Yes | Invoice ID to update | `INV-001` |
+---
 
-**Options:**
+### `report`
 
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--paid` | ❌ No | Mark as paid | `--paid` |
-| `--overdue` | ❌ No | Mark as overdue | `--overdue` |
-| `--pending` | ❌ No | Mark as pending | `--pending` |
+Generates a financial summary report.
 
-**Example:**
 ```bash
-python main.py mark INV-001 --paid
+python3 main.py report
+python3 main.py report --month 2024-03
+```
+
+Output:
+```
+📊 Financial Report — March 2024
+
+Invoices issued: 6
+Total invoiced: $12,400.00
+Total collected: $9,100.00
+Outstanding: $3,300.00
+
+By client:
+  Acme Corp: $6,200.00 invoiced, $4,400.00 collected
+  TechStartup: $3,500.00 invoiced, $3,500.00 collected
+  Freelance: $2,700.00 invoiced, $1,200.00 collected
 ```
 
 ---
 
 ## Use Cases
 
-- **Freelance billing:** Invoice clients for consulting or contract work
-- **Small business:** Generate invoices for products or services
-- **Recurring billing:** Track monthly retainer invoices
-- **Payment tracking:** Know what's paid, pending, or overdue
-- **Record keeping:** Keep digital copies of all invoices
+### 1. Monthly invoicing workflow
+
+Add client → Create invoice with line items → Export HTML → Send to client (manually via email) → Record payment when received.
+
+### 2. Outstanding invoice tracking
+
+```bash
+python3 main.py list --status unpaid
+```
+
+### 3. End-of-month financial review
+
+```bash
+python3 main.py report --month 2024-03
+```
 
 ---
 
-## Tips & Tricks
+## Configuration
 
-- Use multiple `--items` for multiple line items
-- Set `--tax` to add sales tax or VAT automatically
-- Set `--due` for net-30 or net-60 payment terms
-- Export to PDF before sending to clients
+Data stored at: `~/.smf/invoices/`  
+Default currency: USD (configurable)  
+Default payment terms: Net 30
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "Client name required" | Make sure to use `--client "Name"` with quotes |
-| Items format wrong | Use `"Item Name,price,quantity"` format |
-| PDF export fails | Ensure `reportlab` is installed: `pip install reportlab` |
-| Invoice not found | Check with `python main.py list` |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+### `Client not found`
+**Fix:** Use the slug (lowercase-hyphenated). Check with `python3 main.py client list`.
+
+### `Invoice not found: INV-XYZ`
+**Fix:** IDs are case-sensitive. Use `python3 main.py list` to find exact IDs.
+
+### Amount calculation looks wrong
+The skill uses Decimal arithmetic for exact currency math. If you see rounding issues, verify your `--item` amounts use proper decimal notation: `1500.00` not `1500.999`.
+
+---
+
+## FAQ
+
+**Q: Can I convert HTML invoices to PDF?**  
+A: Yes — open the HTML file in Chrome, then File → Print → Save as PDF. Or use `wkhtmltopdf invoice.html invoice.pdf`.
+
+**Q: Does it support taxes?**  
+A: In the current version, add tax as a separate line item: `--item "Sales Tax (8%):144"`.
+
+**Q: Can I customize invoice styling?**  
+A: Edit the HTML template in the skill's source for custom branding.
+
+**Q: What currencies are supported?**  
+A: USD is the default. The skill supports formatting for USD, EUR, and GBP.
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- (Optional) `reportlab` for PDF export (`pip install reportlab`)
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| SMF Works Pro | Required ($19.99/mo) |
+| External APIs | None |
+| Internet | For subscription check only |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/invoice-generator)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/invoice-generator)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
