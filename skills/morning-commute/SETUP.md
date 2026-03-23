@@ -239,6 +239,78 @@ The skill queries Google Maps for traffic conditions at your configured departur
 
 ---
 
+## Verifying Your Setup Works Correctly
+
+After running `--configure`, test that everything is working:
+
+**Step 1 — Run the skill:**
+```bash
+python3 main.py
+```
+
+**Step 2 — Check the output includes traffic data:**
+
+A working output looks like:
+```
+🚗 Morning Commute Briefing — Wednesday, March 15, 2024
+Departure: 8:00 AM
+
+📍 Route: 123 Main St → 456 Business Ave
+   Distance: 12.3 miles
+
+🚗 Driving
+   Typical time: 28 min
+   Current time: 32 min
+   Estimated arrival: 8:32 AM
+```
+
+**Step 3 — Verify traffic data is live:**
+
+If "Typical time" and "Current time" are the same, traffic data may not be working. This can happen if:
+- You're running it outside business hours (less traffic data available)
+- The Directions API isn't fully enabled yet (wait 5 minutes after enabling)
+
+**Step 4 — Test edge cases:**
+
+Run during different times to see how traffic varies:
+```bash
+# Normal time
+python3 main.py
+
+# Verify it shows reasonable numbers for your route
+```
+
+---
+
+## Common Setup Mistakes
+
+**Wrong API key (has extra spaces or missing characters):**
+API keys from Google Cloud Console are exactly 39 characters. If yours is shorter or longer, re-copy it carefully.
+
+**Directions API enabled but key not working:**
+There can be a 5-minute delay after enabling a new API before the key starts working. Wait and retry.
+
+**Home or work address resolves to wrong location:**
+Test your addresses at maps.google.com before configuring. If Google Maps shows the right place, the skill will too.
+
+**Configured for `transit` mode but no transit data appears:**
+Not all areas have detailed transit data in Google Maps. Switch to `driving` for the best results.
+
+---
+
+## Uninstalling / Resetting
+
+To reset the configuration and start fresh:
+
+```bash
+rm ~/.config/smf/skills/morning-commute/config.json
+python3 main.py --configure
+```
+
+This wipes the saved config without deleting the skill files.
+
+---
+
 ## Next Steps
 
 Setup complete. See **HOWTO.md** for daily usage and cron automation.
