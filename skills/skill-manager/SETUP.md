@@ -1,99 +1,127 @@
-# Skill Manager - Setup Guide
+# Skill Manager — Setup Guide
 
-Quick setup guide for the Skill Manager.
-
----
-
-## Prerequisites
-
-- [ ] SMF CLI installed
-- [ ] At least one skill installed (to manage)
-- [ ] Python 3.7+
+**Estimated setup time:** 5 minutes  
+**Difficulty:** Easy  
+**Tier:** Free — no subscription, no API keys required
 
 ---
 
-## Quick Start (2 minutes)
+## What You'll Need
 
-### Step 1: Install
+| Requirement | Details | Cost |
+|-------------|---------|------|
+| Python 3.8+ | Built into macOS 12+, available on Linux | Free |
+| smfworks-skills repository | Cloned via git | Free |
+| Skills installed in `~/.smf/skills/` | The skills you want to manage | Depends on skill |
+| rich (optional) | Python library for enhanced terminal display | Free |
+
+---
+
+## Step 1 — Verify Python
 
 ```bash
-smf install skill-manager
+python3 --version
 ```
 
-### Step 2: Launch
-
-```bash
-smf run skill-manager
-```
-
-That's it! No configuration needed.
+Expected: `Python 3.9.x` or newer.
 
 ---
 
-## Optional: Install Rich for Better UI
+## Step 2 — Get the Repository
 
-For the best visual experience, install the `rich` library:
+```bash
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+```
+
+---
+
+## Step 3 — (Optional) Install rich for Enhanced Display
 
 ```bash
 pip install rich
 ```
 
-This gives you:
-- Beautiful tables with colors
-- Progress bars during backups
-- Better formatting and spacing
-
-Without `rich`, Skill Manager works fine but uses a simpler text interface.
+Without `rich`, the skill uses plain-text output. Both modes are fully functional.
 
 ---
 
-## First Use
+## Step 4 — Navigate to the Skill
 
 ```bash
-# Launch interactive manager
-smf run skill-manager
-
-# You'll see:
-# - List of installed skills
-# - Commands at bottom
-# - Just type numbers to select, 'r' to remove, 'q' to quit
+cd ~/smfworks-skills/skills/skill-manager
 ```
 
 ---
 
-## Common Tasks
+## Step 5 — Verify
 
-### See what's installed
 ```bash
-smf run skill-manager --list
+python3 main.py --help
 ```
 
-### Remove one skill
-```bash
-smf run skill-manager --remove coffee-briefing
+Expected:
 ```
+usage: main.py [-h] [--list] [--remove SKILL] [--backup SKILL] [--dry-run]
 
-### Backup before removing
-```bash
-smf run skill-manager
-# Select skills → b (backup) → r (remove)
-```
+SMF Skill Manager - Visual tool for managing installed OpenClaw skills
 
-### Clean up test skills
-```bash
-smf run skill-manager
-# 1. Select test skills by number
-# 2. b (backup) - optional
-# 3. r (remove)
-# 4. Confirm
+optional arguments:
+  -h, --help            show this help message and exit
+  --list, -l            List installed skills (simple view)
+  --remove SKILL, -r SKILL
+                        Remove a specific skill
+  --backup SKILL, -b SKILL
+                        Backup a specific skill
+  --dry-run, -d         Show what would be done without doing it
 ```
 
 ---
 
-## Support
+## Verify Your Setup
 
-- **Issues:** https://github.com/smfworks/smfworks-skills/issues
+List installed skills:
+
+```bash
+python3 main.py --list
+```
+
+If you have skills installed, you'll see them listed. If you see `No skills installed.`, that's correct if you haven't installed any SMF skills yet — the skill manager itself is working correctly.
 
 ---
 
-**Ready to manage your skills! 🎛️**
+## Configuration Options
+
+No configuration needed. Skills are detected automatically from `~/.smf/skills/`.
+
+---
+
+## Troubleshooting
+
+**`No skills installed.`** — Install some skills first. This means the manager is working; there's just nothing to manage yet.
+
+**Interactive UI looks garbled** — Use `--list`, `--remove`, and `--backup` flags instead of the interactive mode.
+
+---
+
+## Quick Reference
+
+```bash
+# List all installed skills
+python3 main.py --list
+
+# Back up a skill before making changes
+python3 main.py --backup skill-name
+
+# Remove a skill you no longer need
+python3 main.py --remove skill-name
+
+# Preview removal without doing it
+python3 main.py --remove skill-name --dry-run
+
+# Launch interactive UI
+python3 main.py
+```
+
+## Next Steps
+
+See **HOWTO.md** for walkthroughs on backup, removal, and the interactive UI.
