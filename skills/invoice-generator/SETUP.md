@@ -92,6 +92,27 @@ Your $19.99/mo Pro subscription includes access to all 14 Pro skills including I
 
 ---
 
+## Item Format Reference
+
+When using `--item` to add line items to an invoice, the format is:
+
+```
+--item "Description:Amount"
+```
+
+Examples:
+```
+--item "Web Design:3000"
+--item "Hourly Consulting (5 hrs):500"
+--item "Monthly Retainer:1500.00"
+--item "Expedite Fee:200"
+```
+
+Multiple `--item` flags can be used in one command:
+```bash
+python3 main.py create --client "Acme" --item "Design:3000" --item "SEO:500" --item "Hosting:150"
+```
+
 ## Next Steps
 
 Setup complete. See **HOWTO.md** for a complete invoicing walkthrough from client creation to financial reporting.
