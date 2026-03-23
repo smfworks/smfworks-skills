@@ -267,6 +267,47 @@ rm ~/.config/smf/skills/coffee-briefing/token.json
 python3 main.py
 ```
 
+**Headless server (no browser for OAuth):**
+If running on a remote server without a browser, the OAuth URL is printed to the terminal. Copy it, open it on a computer with a browser, complete the authorization, and copy the authorization code back to the terminal when prompted.
+
+---
+
+## Reconfiguring After Setup
+
+You can update any setting without going through the full setup again:
+
+**Change your city:**
+```bash
+# Edit config directly:
+nano ~/.config/smf/skills/coffee-briefing/config.json
+# Update the "location" field and save
+```
+
+**Change news categories:**
+```bash
+python3 main.py --configure
+# Press Enter to skip the API key prompt
+# Choose new categories
+```
+
+**Test with different location before saving:**
+```bash
+# Use --api-key flag to test temporarily
+python3 main.py --output json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('weather','no weather'))"
+```
+
+---
+
+## API Key Security
+
+Your OpenWeatherMap API key is stored in a config file with `chmod 600` (owner read-only). To avoid storing it in a file, use an environment variable:
+
+```bash
+export OPENWEATHER_API_KEY="your-key-here"
+```
+
+Add to `~/.bashrc` to make it persistent. The skill checks the environment variable before the config file.
+
 ---
 
 ## Next Steps
