@@ -1,29 +1,49 @@
 # Lead Capture
 
-> Capture, qualify, and manage sales leads with automatic scoring
+> Capture, store, and export sales leads from the terminal — with stats, CSV/JSON export, and a simple interactive intake form.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Version:** 1.0  
+**Category:** Sales / CRM
 
 ---
 
 ## What It Does
 
-Lead Capture helps you collect and organize potential customers. Add leads with contact info and notes, automatically score them based on engagement signals, and export prioritized lists for your sales team.
+Lead Capture is an OpenClaw Pro skill for collecting and managing sales leads directly from your terminal. Run an interactive intake to capture lead details (name, email, company, phone, interest), list all stored leads, export to CSV or JSON, and view statistics on your lead pipeline.
+
+Leads are stored locally in `~/.smf/leads/leads.json`. No cloud sync, no external CRM — just fast, local lead storage you own.
+
+**What it does NOT do:** It does not sync to a CRM, send automated follow-up emails, score leads, or integrate with web forms.
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
+- [ ] **No API keys required**
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Free tier:**
 ```bash
-smfw install lead-capture
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/lead-capture
+python3 main.py
 ```
 
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+Expected output (if Pro subscription is active):
+```
+Usage: python main.py <command> [options]
+
+Commands:
+  capture              - Capture a new lead (interactive)
+  list [limit]         - List all leads
+  export [csv|json]    - Export leads to file
+  stats                - Show lead statistics
 ```
 
 ---
@@ -33,167 +53,227 @@ python install.sh
 Capture your first lead:
 
 ```bash
-python main.py capture --name "Jane Doe" --email "jane@company.com"
+python3 main.py capture
+```
+
+The skill will prompt for:
+- Name
+- Email
+- Company
+- Phone (optional)
+- Interest / notes
+
+Then run:
+```bash
+python3 main.py list
 ```
 
 ---
 
-## Commands
+## Command Reference
 
 ### `capture`
 
-**What it does:** Add a new lead to your database.
+Interactive lead intake. Prompts for lead details and saves to local storage.
 
 **Usage:**
 ```bash
-python main.py capture [options]
+python3 main.py capture
 ```
 
-**Options:**
+**Interactive session:**
+```
+📋 New Lead Capture
+────────────────────
+Name: Jane Smith
+Email: jane@acmecorp.com
+Company: Acme Corp
+Phone (optional): +1 555 0100
+Interest/Notes: Interested in Pro plan, asked about API access
 
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--name` | ✅ Yes | Contact name | `--name "Jane Doe"` |
-| `--email` | ✅ Yes | Email address | `--email "jane@company.com"` |
-| `--phone` | ❌ No | Phone number | `--phone "555-1234"` |
-| `--company` | ❌ No | Company name | `--company "Acme Corp"` |
-| `--source` | ❌ No | Where lead came from | `--source "Website"` |
-| `--notes` | ❌ No | Additional notes | `--notes "Interested in enterprise plan"` |
-
-**Example:**
-```bash
-python main.py capture --name "Jane Doe" --email "jane@company.com" --company "Acme"
-python main.py capture --name "John Smith" --email "john@corp.com" --source "Trade show"
+✅ Lead saved: Jane Smith (Acme Corp)
 ```
 
 ---
 
 ### `list`
 
-**What it does:** Display all leads, sorted by score.
+Shows stored leads, most recent first. Optional limit argument controls how many to show.
 
 **Usage:**
 ```bash
-python main.py list
+python3 main.py list [limit]
 ```
 
 **Example:**
 ```bash
-python main.py list
+python3 main.py list 10
 ```
 
 **Output:**
 ```
-👥 Your Leads (5):
-------------------------------------------------------------
-1. ⭐⭐⭐ Hot | Jane Doe | jane@company.com | Acme Corp
-2. ⭐⭐ Warm  | John Smith | john@corp.com | —
-3. ⭐ Cold  | Bob Wilson | bob@email.com | Wilson & Sons
+📋 Leads (10 most recent):
+
+1. Jane Smith — jane@acmecorp.com — Acme Corp
+   Captured: 2024-03-15 09:42
+   Notes: Interested in Pro plan, asked about API access
+
+2. Bob Jones — bob@techco.io — TechCo
+   Captured: 2024-03-14 14:21
+   Notes: Demo request, budget approved
+
+...
 ```
 
 ---
 
 ### `export`
 
-**What it does:** Export leads to CSV or JSON format.
+Exports all leads to a file. Supports CSV and JSON formats.
 
 **Usage:**
 ```bash
-python main.py export [options]
+python3 main.py export [csv|json]
 ```
 
-**Options:**
-
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--format` | ❌ No | Export format: `csv` or `json` | `--format csv` |
-| `--output` | ❌ No | Output file path | `--output leads.csv` |
-
-**Example:**
+**Example — CSV:**
 ```bash
-python main.py export --format csv --output leads.csv
-python main.py export --format json --output leads.json
+python3 main.py export csv
+```
+
+**Output:**
+```
+✅ Exported 47 leads to leads-2024-03-15.csv
+```
+
+**Example — JSON:**
+```bash
+python3 main.py export json
+```
+
+**Output:**
+```
+✅ Exported 47 leads to leads-2024-03-15.json
 ```
 
 ---
 
-### `search`
+### `stats`
 
-**What it does:** Search leads by keyword.
-
-**Usage:**
-```bash
-python main.py search [keyword]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `keyword` | ✅ Yes | Search term | `consulting` |
-
-**Example:**
-```bash
-python main.py search "enterprise"
-python main.py search "referral"
-```
-
----
-
-### `score`
-
-**What it does:** Score and prioritize leads.
+Shows pipeline statistics: total leads, recent activity, and capture rate.
 
 **Usage:**
 ```bash
-python main.py score
+python3 main.py stats
 ```
 
-**Example:**
-```bash
-python main.py score
+**Output:**
+```
+📊 Lead Statistics
+────────────────────
+Total leads: 47
+This week: 8
+This month: 23
+Avg per day (30d): 0.8
+
+Top companies:
+  Acme Corp: 3 leads
+  TechCo: 2 leads
+  InnovateLtd: 2 leads
 ```
 
 ---
 
 ## Use Cases
 
-- **Website forms:** Capture leads from contact forms
-- **Trade shows:** Collect badges and add leads after events
-- **Referrals:** Track who referred whom
-- **Sales prioritization:** Focus on hottest leads first
+### 1. Capture a lead immediately after a sales call
+
+```bash
+python3 main.py capture
+```
 
 ---
 
-## Tips & Tricks
+### 2. Export leads weekly for your CRM import
 
-- Add `--source` to track where leads come from
-- Use `score` regularly to identify hot leads
-- Export to CSV to import into other CRM tools
-- Search by company name to find all contacts at one company
+```bash
+python3 main.py export csv
+# Import the CSV into your CRM manually
+```
+
+---
+
+### 3. Track weekly lead volume
+
+```bash
+python3 main.py stats
+```
+
+---
+
+### 4. Review leads before a follow-up session
+
+```bash
+python3 main.py list 20
+```
+
+---
+
+## Configuration
+
+No configuration file needed. Leads stored at: `~/.smf/leads/leads.json`
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "Email already exists" | Lead already captured; use search to find it |
-| "Invalid email format" | Check the email address format |
-| Empty export | Ensure you have leads captured first |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe). Ensure OpenClaw is authenticated.
+
+### `No leads found`
+No leads captured yet.  
+**Fix:** Run `capture` to add your first lead.
+
+### `Error: Invalid email format`
+The email address entered during capture doesn't pass validation.  
+**Fix:** Enter a valid email address (must contain `@` and a domain).
+
+### Export file already exists
+**Fix:** The export creates a date-stamped file. If you've already exported today, a new timestamped version is created.
+
+---
+
+## FAQ
+
+**Q: Where are leads stored?**  
+A: Locally at `~/.smf/leads/leads.json`. Nothing is sent to any cloud service.
+
+**Q: Can I import leads from an existing CSV?**  
+A: Not via CLI command. You can manually edit the JSON file to import existing leads.
+
+**Q: Does it check for duplicate emails?**  
+A: The skill accepts all entries. Check for duplicates in your exported CSV.
+
+**Q: Can I delete a lead?**  
+A: Edit `~/.smf/leads/leads.json` directly in a text editor to remove entries.
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- No external dependencies
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| SMF Works Pro | Required ($19.99/mo) |
+| OpenClaw | Authenticated |
+| External APIs | None |
+| Internet | For subscription check only |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/lead-capture)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/lead-capture)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
