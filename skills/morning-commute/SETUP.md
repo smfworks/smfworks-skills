@@ -1,224 +1,105 @@
-# Morning Commute - Setup Guide
+# Morning Commute — Setup Guide
 
-Complete setup guide for the Morning Commute Pro skill.
-
----
-
-## Prerequisites
-
-Before starting, ensure you have:
-
-- [ ] SMF Works Pro subscription (active)
-- [ ] Python 3.7+ installed
-- [ ] Home and work addresses
-- [ ] Internet connection
-
-**Estimated setup time:** 15-20 minutes
+**Estimated setup time:** 15–20 minutes  
+**Difficulty:** Moderate (requires Google Maps API key)  
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo)
 
 ---
 
-## Step 1: Install the Skill (2 minutes)
+## What You'll Need
+
+| Requirement | Details | Cost |
+|-------------|---------|------|
+| SMF Works Pro subscription | [smfworks.com/subscribe](https://smfworks.com/subscribe) | $19.99/mo |
+| Python 3.8+ | Built into macOS 12+, available on Linux | Free |
+| OpenClaw | Installed and authenticated | Free |
+| Google Maps API key | Free $200/mo credit from Google | Free for personal use |
+| smfworks-skills repository | Cloned via git | Included |
+
+---
+
+## Step 1 — Subscribe to SMF Works Pro
+
+Visit [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+Verify authentication:
+```bash
+openclaw auth status
+```
+
+---
+
+## Step 2 — Get a Google Maps API Key
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Create a new project (e.g., "Morning Commute")
+3. Go to APIs & Services → Library
+4. Search "Directions API" → Enable it
+5. Go to APIs & Services → Credentials
+6. Click "Create Credentials" → "API Key"
+7. Copy the key — it looks like: `AIzaSyD1a2b3c4d5e6f7g8h9i0j`
+8. (Recommended) Restrict the key to the Directions API only
+
+**Cost:** Google gives $200/month free credit. A daily commute check costs ~$0.005 — well within free tier.
+
+---
+
+## Step 3 — Get the Repository
 
 ```bash
-# Install via SMF CLI
-smf install morning-commute
-
-# Verify installation
-smf list | grep morning-commute
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
 ```
 
 ---
 
-## Step 2: Run Configuration Wizard (10 minutes)
+## Step 4 — Configure the Skill
 
 ```bash
-smf run morning-commute --configure
+cd ~/smfworks-skills/skills/morning-commute
+python3 main.py --configure
 ```
 
-### 2.1 Enter Home Address
-
+Prompts:
 ```
-Step 1: Home Location
-Enter your home address (e.g., '123 Main St, Pittsboro, NC')
+Google Maps API Key: [paste key]
+Home address: 123 Main St, New York, NY 10001
+Work address: 456 Business Ave, New York, NY 10002
+Departure time [08:00]: 08:00
+Travel mode (driving/transit/walking/bicycling) [driving]: driving
 
-Home address: 123 Main St, Pittsboro, NC
-Geocoding address...
-✅ Found: 35.7204, -79.1772
-```
-
-**Tips:**
-- Use full address with city and state
-- If geocoding fails, try simpler format
-- You can manually add coordinates later
-
-### 2.2 Enter Work Address
-
-```
-Step 2: Work Location
-Enter your work address
-
-Work address: 456 Corporate Dr, Durham, NC
-Geocoding address...
-✅ Found: 35.9940, -78.8986
-```
-
-### 2.3 Weather API (Optional)
-
-```
-Step 3: Weather API (Optional)
-Get free API key at: https://openweathermap.org/api
-Adds current conditions to your briefing
-
-OpenWeatherMap API key (press Enter to skip): YOUR_API_KEY
-```
-
-**To get weather API key:**
-1. Go to https://openweathermap.org/api
-2. Click "Sign Up"
-3. Verify email
-4. Copy API key from dashboard
-5. **Wait 10-15 minutes** for key to activate
-
-### 2.4 Departure Settings
-
-```
-Step 4: Departure Settings
-Target arrival time (HH:MM, 24h) [08:00]: 09:00
-Units (imperial/metric) [imperial]: imperial
-```
-
-**Options:**
-- **imperial** - Miles, Fahrenheit
-- **metric** - Kilometers, Celsius
-
-### 2.5 Schedule
-
-```
-Step 5: Schedule
-Recommended: Run weekday mornings at 6:30 AM
-Command: openclaw cron add --name 'morning-commute' --schedule '30 6 * * 1-5' --command 'smf run morning-commute'
-
-✅ Configuration saved to: ~/.config/smf/skills/morning-commute/config.json
-
-Your Morning Commute briefing is ready!
-Run: smf run morning-commute
+✅ Configuration saved!
 ```
 
 ---
 
-## Step 3: Test (2 minutes)
-
-### 3.1 Run Briefing
+## Step 5 — Verify
 
 ```bash
-smf run morning-commute
+python3 main.py
 ```
 
-Expected output:
-```
-🚗 Morning Commute Briefing — Monday, March 24, 2026
-
-🌤️ 58°F, partly cloudy
-
-🚗 Commute: 28 min (15.2 mi)
-   ⚠️  Traffic delay: +8 min
-   Normal time: 20 min
-
-⏰ Departure Alert
-   Target arrival: 09:00
-   Leave by: 08:22
-
-—
-Powered by SMF Works Morning Commute
-Configure: smf run morning-commute --configure
-Subscribe: https://smf.works/subscribe
-```
+Expected: A formatted commute briefing with travel time and traffic conditions.
 
 ---
 
-## Step 4: Schedule Daily (5 minutes)
+## Configuration File
 
-### OpenClaw Cron
-
-```bash
-# Weekday mornings at 6:30 AM
-openclaw cron add \
-  --name "morning-commute" \
-  --schedule "30 6 * * 1-5" \
-  --command "smf run morning-commute"
-```
-
-### System Cron
-
-```bash
-# Edit crontab
-crontab -e
-
-# Add for 6:30 AM weekdays only
-30 6 * * 1-5 /usr/local/bin/smf run morning-commute
-```
-
----
-
-## Configuration Reference
-
-### Full Config File
-
-```json
-{
-  "home_location": {
-    "address": "123 Main St, Pittsboro, NC",
-    "lat": 35.7204,
-    "lon": -79.1772
-  },
-  "work_location": {
-    "address": "456 Corporate Dr, Durham, NC",
-    "lat": 35.9940,
-    "lon": -78.8986
-  },
-  "weather_api_key": "your_openweathermap_api_key",
-  "departure_time": "09:00",
-  "units": "imperial"
-}
-```
-
-### Manual Coordinate Entry
-
-If geocoding fails:
-
-1. Find coordinates at https://www.latlong.net
-2. Edit config: `nano ~/.config/smf/skills/morning-commute/config.json`
-3. Update with lat/lon values
+Location: `~/.config/smf/skills/morning-commute/config.json`
 
 ---
 
 ## Troubleshooting
 
-### "Could not geocode address"
+**`Error: SMF Works Pro subscription required`** — Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
 
-- Try simpler address format
-- Manually add coordinates (see above)
-- Check internet connection
+**`REQUEST_DENIED`** — Enable the Directions API in Google Cloud Console for your project.
 
-### "Route info unavailable"
+**`ZERO_RESULTS`** — Use full street addresses with city and ZIP code.
 
-- OSRM demo server may be down (try again later)
-- Verify coordinates are set in config
-
-### "Weather unavailable"
-
-- Wait 10-15 minutes if key is new
-- Test key: `curl "https://api.openweathermap.org/data/2.5/weather?q=London&appid=YOUR_KEY&units=imperial"`
+**`API key not valid`** — Check the key is correctly copied with no extra spaces.
 
 ---
 
-## Support
+## Next Steps
 
-- Issues: https://github.com/smfworks/smfworks-skills/issues
-- OpenStreetMap: https://operations.osmfoundation.org/policies/nominatim/
-- OSRM: http://project-osrm.org/
-- Weather API: https://openweathermap.org/faq
-
----
-
-**Setup complete! Safe travels 🚗**
+Setup complete. See **HOWTO.md** for daily usage and cron automation.

@@ -1,164 +1,195 @@
 # Morning Commute
 
-> Get traffic, weather, and route info for your daily commute before you leave
+> Get real-time traffic conditions, transit times, and commute alerts for your daily route — before you leave the house.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Requires:** Google Maps API key (free tier available)  
+**Version:** 1.0  
+**Category:** Productivity / Daily Briefing
 
 ---
 
 ## What It Does
 
-Morning Commute delivers a quick briefing about your drive to work — current traffic conditions, estimated travel time, weather along your route, and any delays to watch out for. Perfect for figuring out when to leave without checking multiple apps.
+Morning Commute is an OpenClaw Pro skill that checks your commute route using the Google Maps Directions API and delivers a clear commute briefing: estimated travel time, traffic conditions, transit options, and any alerts for your saved route. Configure your home and work addresses once, set your departure time, and get a personalized daily commute report.
+
+**What it does NOT do:** It does not track live vehicle positions, provide turn-by-turn navigation, monitor specific transit lines for delays, or send push notifications.
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
+- [ ] **Google Maps API key** — see SETUP.md for instructions
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Free tier:**
 ```bash
-smfw install morning-commute
-```
-
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/morning-commute
+python3 main.py --configure
 ```
 
 ---
 
 ## Quick Start
 
-Get your morning commute briefing:
+After configuration:
 
 ```bash
-python main.py commute
+python3 main.py
+```
+
+Output:
+```
+🚗 Morning Commute Briefing — Wednesday, March 15, 2024
+Departure: 8:00 AM
+═══════════════════════════════════════════════════════
+
+📍 Route: Home → Acme Corp HQ
+   Distance: 12.3 miles
+
+🚗 Driving
+   Typical time: 28 min
+   Current time: 42 min ⚠️ (heavy traffic on I-95 N)
+   Estimated arrival: 8:42 AM
+   Recommendation: Leave now or delay 30 min
+
+🚇 Transit
+   Next departure: 8:07 AM (Bus #42)
+   Estimated arrival: 8:51 AM (via Downtown station)
+
+Configure: smf run morning-commute --configure
 ```
 
 ---
 
-## Commands
+## Command Reference
 
-### `commute`
+### Default (no arguments)
 
-**What it does:** Get your complete commute briefing with traffic and weather.
+Generates and prints your commute briefing using saved configuration.
 
-**Usage:**
 ```bash
-python main.py commute [options]
-```
-
-**Options:**
-
-| Option | Required | Description | Example |
-|--------|----------|-------------|---------|
-| `--home` | ❌ No | Home location | `--home "New York"` |
-| `--work` | ❌ No | Work location | `--work "Boston"` |
-
-**Example:**
-```bash
-python main.py commute
-python main.py commute --home "New York" --work "Boston"
-```
-
-**Output:**
-```
-🚗 Morning Commute — March 25, 2026
-==================================================
-
-📍 Route: New York → Boston
-   Distance: 215 miles
-   Current travel time: 3h 45m (heavy traffic)
-
-🚦 Traffic Conditions:
-   I-95 N: Heavy traffic, 45 min delay expected
-   I-90 E: Moderate traffic, normal flow
-   Alternate route: I-84 E, 15 min longer but less traffic
-
-🌤️ Weather Along Route:
-   New York: ☀️ 58°F, Clear
-   Hartford: 🌤️ 55°F, Partly cloudy
-   Boston: 🌧️ 52°F, Light rain
-
-💡 Recommendation:
-   Leave by 7:30 AM to avoid worst traffic.
-   Rain expected in Boston — allow extra travel time.
-
-⏰ Suggested Departure: 7:30 AM
+python3 main.py
 ```
 
 ---
 
-### `traffic`
+### `--configure` / `-c`
 
-**What it does:** Get current traffic conditions for your route.
+Interactive setup wizard for home address, work address, departure time, and Google Maps API key.
 
-**Usage:**
 ```bash
-python main.py traffic
+python3 main.py --configure
 ```
 
-**Example:**
-```bash
-python main.py traffic
-```
-
----
-
-### `weather`
-
-**What it does:** Get weather forecast for your commute.
-
-**Usage:**
-```bash
-python main.py weather
-```
-
-**Example:**
-```bash
-python main.py weather
-```
+Configuration prompts:
+- Home address
+- Work/destination address
+- Preferred departure time
+- Google Maps API key
+- Travel mode preference (driving, transit, walking, bicycling)
 
 ---
 
 ## Use Cases
 
-- **Leave on time:** Know exactly when to depart based on traffic
-- **Weekend trips:** Check conditions before a long drive
-- **Alternative routes:** See if detour would save time
-- **Weather prep:** Know if you need an umbrella or snow tires
+### 1. Daily check before leaving
+
+```bash
+python3 main.py
+```
+
+Know before you leave whether traffic is light or heavy — and whether to take an alternate route or public transit.
 
 ---
 
-## Tips & Tricks
+### 2. Schedule automated morning alert
 
-- Set `--home` and `--work` once to skip typing each time
-- Check traffic the night before to plan your morning
-- Use before long trips to check weather along the route
+Via cron, generate the briefing at 7 AM so it's ready when you wake up:
+
+```bash
+0 7 * * 1-5 python3 /home/yourname/smfworks-skills/skills/morning-commute/main.py > /home/yourname/commute-$(date +\%Y-\%m-\%d).txt 2>&1
+```
+
+---
+
+### 3. Combine with Coffee Briefing
+
+Run both for a complete morning overview:
+
+```bash
+python3 ~/smfworks-skills/skills/coffee-briefing/main.py
+python3 ~/smfworks-skills/skills/morning-commute/main.py
+```
+
+---
+
+## Configuration
+
+Config file: `~/.config/smf/skills/morning-commute/config.json`
+
+| Setting | Description |
+|---------|-------------|
+| `google_maps_api_key` | Your Google Maps API key |
+| `home_address` | Your starting address |
+| `work_address` | Your destination address |
+| `departure_time` | Preferred departure (e.g., `"08:00"`) |
+| `travel_mode` | `driving`, `transit`, `walking`, or `bicycling` |
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "Location not recognized" | Try a more specific address |
-| "Traffic unavailable" | Check internet connection |
-| "API key needed" | Some features require Google Maps API key |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+### `Error: Google Maps API key not configured`
+**Fix:** Run `python3 main.py --configure`.
+
+### `REQUEST_DENIED` from Google Maps
+**Fix:** Your API key doesn't have the Directions API enabled. Go to Google Cloud Console → APIs → Enable "Directions API".
+
+### `ZERO_RESULTS` — no route found
+**Fix:** Verify your home and work addresses are valid. Try full street addresses with city and ZIP.
+
+### Commute shows driving only, no transit
+**Fix:** Not all locations have transit data. Try setting `travel_mode: transit` in config.
+
+---
+
+## FAQ
+
+**Q: How much does the Google Maps API cost?**  
+A: Google provides a $200/month free credit. A daily commute check uses roughly $0.005 per request (2 requests/day = $0.30/month) — well within the free tier.
+
+**Q: Can I check multiple routes?**  
+A: One route per configuration. To check multiple routes, run `--configure` to change the destination, or edit the config file directly.
+
+**Q: Can I check the commute for a future time?**  
+A: The skill checks traffic conditions for your configured departure time. Checking specific future times requires editing the config.
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- (Optional) Google Maps API key for full traffic data
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| SMF Works Pro | Required ($19.99/mo) |
+| Google Maps API | Free tier (Directions API enabled) |
+| Internet | Required |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/morning-commute)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/morning-commute)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
