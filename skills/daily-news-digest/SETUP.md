@@ -1,233 +1,228 @@
-# Daily News Digest - Setup Guide
+# Daily News Digest — Setup Guide
 
-## Prerequisites
-
-- OpenClaw installed and running
-- SMF CLI installed (`smf` command available)
-- Internet connection
-- NewsAPI.org account (free)
+**Estimated setup time:** 10 minutes  
+**Difficulty:** Easy  
+**Tier:** Free — skill is free; requires a free NewsAPI.org API key
 
 ---
 
-## Quick Setup (5 minutes)
+## What You'll Need
 
-### 1. Get Your API Key
-
-```bash
-# Visit the registration page
-open https://newsapi.org/register
-```
-
-Or manually:
-1. Go to **https://newsapi.org/register**
-2. Enter your email and create a password
-3. Verify your email address
-4. Log in to the dashboard
-5. Copy your API key (starts with a long string of letters/numbers)
-
-### 2. Install the Skill
-
-```bash
-smf install daily-news-digest
-```
-
-### 3. Configure
-
-```bash
-smf run daily-news-digest --configure
-```
-
-Follow the prompts:
-- Paste your API key
-- Choose categories (e.g., `business,technology`)
-- Set country code (e.g., `us`)
-- Set articles per category (default: 5)
-
-### 4. Test
-
-```bash
-smf run daily-news-digest
-```
-
-You should see a formatted news digest in your terminal.
+| Requirement | Details | Cost |
+|-------------|---------|------|
+| Python 3.8+ | Built into macOS 12+, available on Linux | Free |
+| smfworks-skills repository | Cloned via git | Free |
+| NewsAPI.org account | Free, no credit card required | Free |
+| NewsAPI key | Generated after account creation | Free (100 requests/day) |
+| Internet connection | Required to fetch news | — |
 
 ---
 
-## Scheduling Options
-
-### Option A: OpenClaw Cron (Recommended)
-
-Add to your OpenClaw configuration:
-
-```json
-{
-  "name": "daily-news-digest",
-  "schedule": { "kind": "cron", "expr": "30 6 * * *", "tz": "America/New_York" },
-  "payload": { "kind": "systemEvent", "text": "smf run daily-news-digest" },
-  "sessionTarget": "main"
-}
-```
-
-Or use the CLI:
+## Step 1 — Verify Python
 
 ```bash
-openclaw cron add \
-  --name "daily-news-digest" \
-  --schedule "30 6 * * *" \
-  --command "smf run daily-news-digest"
+python3 --version
 ```
 
-### Option B: System Cron
-
-Add to your crontab:
-
-```bash
-# Edit crontab
-crontab -e
-
-# Add this line for 6:30 AM daily
-30 6 * * * /usr/local/bin/smf run daily-news-digest >> ~/.config/smf/skills/daily-news-digest/cron.log 2>&1
-```
-
-### Option C: OpenClaw Heartbeat
-
-Add to your `HEARTBEAT.md`:
-
-```markdown
-## Daily Tasks
-
-- [ ] 6:30 AM - Run daily news digest
-```
-
-Then configure OpenClaw to check at 6:30 AM.
+Expected: `Python 3.9.x` or newer.
 
 ---
 
-## Verification
-
-### Check Installation
+## Step 2 — Get the Repository
 
 ```bash
-smf list | grep daily-news-digest
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
 ```
 
-### Check Configuration
+---
 
+## Step 3 — Get a Free NewsAPI Key
+
+The skill requires a free API key from NewsAPI.org. Here's how to get one:
+
+**3a — Go to the registration page:**  
+Open your browser and visit: [https://newsapi.org/register](https://newsapi.org/register)
+
+**3b — Fill out the form:**
+- First name / Last name
+- Email address
+- Password
+
+**3c — Confirm your email:**  
+Check your inbox for a confirmation email from NewsAPI. Click the verification link.
+
+**3d — Find your API key:**  
+After confirming, log in and go to your dashboard at [newsapi.org/account](https://newsapi.org/account). Your API key is displayed there. It looks like this:
+```
+a1b2c3d4e5f67890a1b2c3d4e5f67890
+```
+
+**3e — Save your key somewhere temporarily** (you'll paste it into the configuration wizard in Step 6).
+
+**Free plan limits:**
+- 100 API requests per day
+- Top headlines only (no full article text)
+- No commercial use
+
+This is more than sufficient for daily personal use with one or two runs per day.
+
+---
+
+## Step 4 — Navigate to the Skill
+
+```bash
+cd ~/smfworks-skills/skills/daily-news-digest
+```
+
+---
+
+## Step 5 — Verify the Skill
+
+```bash
+python3 main.py --help
+```
+
+Expected output:
+```
+usage: main.py [-h] [--configure] [--api-key API_KEY] [--output {text,json}]
+
+Daily News Digest - Get curated news delivered daily
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --configure, -c       Run configuration wizard
+  --api-key API_KEY, -k API_KEY
+                        NewsAPI key (overrides saved config)
+  --output {text,json}, -o {text,json}
+                        Output format (default: text)
+```
+
+---
+
+## Step 6 — Configure the Skill
+
+Run the setup wizard:
+
+```bash
+python3 main.py --configure
+```
+
+You'll be guided through four steps:
+
+```
+Step 1: API Key
+Enter your NewsAPI key: [paste your key here and press Enter]
+
+Step 2: News Categories
+Available: business, technology, science, health, sports, entertainment, general
+Enter categories (comma-separated) [business,technology]: technology,science
+
+Step 3: Country
+Enter 2-letter country code (e.g., us, gb, ca, au)
+Country [us]: us
+
+Step 4: Articles per Category
+Max articles per category [5]: 5
+
+✅ Configuration saved to: /home/yourname/.config/smf/skills/daily-news-digest/config.json
+Your Daily News Digest is ready!
+Run: smf run daily-news-digest
+```
+
+**Choose your categories wisely:** Start with 2–3 categories at 5 articles each. More categories = more API requests. With the free plan's 100 requests/day limit, 3 categories × 5 articles = well within the free limit for multiple daily runs.
+
+---
+
+## Verify Your Setup
+
+Run the digest for the first time:
+
+```bash
+python3 main.py
+```
+
+Expected output:
+```
+📰 Daily News Digest — Friday, March 15, 2024
+══════════════════════════════════════════════
+
+💻 Technology
+─────────────
+1. Apple Announces New M3 Ultra Chip for Mac Pro
+   Source: TechCrunch | techcrunch.com/...
+
+2. OpenAI Releases GPT-5 with Improved Reasoning
+   Source: The Verge | theverge.com/...
+...
+```
+
+If you see headlines with sources, your setup is complete.
+
+---
+
+## Configuration File Location
+
+Your settings are saved at:
+```
+~/.config/smf/skills/daily-news-digest/config.json
+```
+
+You can view or edit it directly:
 ```bash
 cat ~/.config/smf/skills/daily-news-digest/config.json
 ```
 
-### Test API Key
-
-```bash
-smf run daily-news-digest --output json
+Sample content:
+```json
+{
+  "api_key": "a1b2c3d4e5f67890a1b2c3d4e5f67890",
+  "categories": ["technology", "science"],
+  "country": "us",
+  "max_articles": 5
+}
 ```
 
-Should return JSON with news articles.
+The file is saved with restricted permissions (readable only by you).
 
 ---
 
-## Customization
+## Alternative: Environment Variable
 
-### Change Categories
-
-Edit the config file:
+If you prefer not to save the key to a file:
 
 ```bash
-nano ~/.config/smf/skills/daily-news-digest/config.json
+export NEWSAPI_KEY="your-api-key-here"
+python3 main.py
 ```
 
-Valid categories:
-- `business`
-- `technology`
-- `science`
-- `health`
-- `sports`
-- `entertainment`
-- `general`
-
-### Change Schedule
-
-Update your cron job:
-
-```bash
-# List current cron jobs
-openclaw cron list
-
-# Update the schedule
-openclaw cron update daily-news-digest --schedule "0 7 * * *"
-```
+Add the export to your `~/.bashrc` or `~/.zshrc` to make it permanent.
 
 ---
 
-## Troubleshooting
+## Troubleshooting Setup Issues
 
-### Installation Issues
+**`Error: No API key configured.`**  
+You haven't run `--configure` yet, or the config file doesn't exist.  
+**Fix:** `python3 main.py --configure`
 
-**"Command not found: smf"**
-```bash
-# Make sure SMF CLI is installed
-curl -fsSL https://raw.githubusercontent.com/smfworks/smfworks-skills/main/install.sh | bash
-```
+**`HTTP Error 401: Unauthorized`**  
+API key is wrong or not yet active.  
+**Fix:** Double-check your key at newsapi.org/account. New keys may take a minute to activate.
 
-**"Permission denied"**
-```bash
-chmod +x ~/.local/bin/smf
-```
+**`HTTP Error 429: Too Many Requests`**  
+You've used all 100 free requests today.  
+**Fix:** Wait until midnight UTC for the limit to reset.
 
-### Configuration Issues
-
-**"No API key configured"**
-- Run `smf run daily-news-digest --configure` again
-- Check the config file exists: `ls ~/.config/smf/skills/daily-news-digest/`
-
-**"Invalid API key"**
-- Log in to https://newsapi.org and verify your key
-- Copy/paste the key carefully (no extra spaces)
-
-### Runtime Issues
-
-**"No articles found"**
-- Check your categories are valid (see list above)
-- Try `general` category which always has content
-- Check your internet connection
-
-**"API rate limit exceeded"**
-- Free tier: 100 requests/day
-- Wait 24 hours, or upgrade at NewsAPI.org
-- Check if you have multiple scheduled runs
+**No internet access**  
+The skill requires internet to fetch news.  
+**Fix:** Check your connection: `curl https://newsapi.org`
 
 ---
 
 ## Next Steps
 
-1. **Verify it works:** Run `smf run daily-news-digest`
-2. **Set schedule:** Configure cron for automatic delivery
-3. **Customize:** Adjust categories to your interests
-4. **Integrate:** Pipe output to notifications (see below)
-
-### Send to Notifications
-
-To get the digest via WhatsApp/Telegram:
-
-```bash
-# Add to your OpenClaw cron payload
-{
-  "kind": "systemEvent",
-  "text": "smf run daily-news-digest | send-to-whatsapp"
-}
-```
-
-Or use OpenClaw's messaging integration directly.
-
----
-
-## Support
-
-- **Issues:** https://github.com/smfworks/smfworks-skills/issues
-- **Documentation:** https://smfworks.com/skills/daily-news-digest
-- **NewsAPI Help:** https://newsapi.org/docs
-
----
-
-*Setup complete! Enjoy your daily news briefing.*
+Setup complete. See **HOWTO.md** for:
+- How to customize your categories
+- How to schedule a daily briefing with cron
+- How to get JSON output for scripting
+- Tips for getting the most from the free NewsAPI plan
