@@ -1,230 +1,252 @@
 # Claw System Backup
 
-> Complete system backup tool for your entire computer
+> Create a complete compressed backup of your entire home directory — with integrity verification, rolling retention, and selective restore.
+
+**Tier:** Pro — requires SMF Works Pro subscription ($19.99/mo at [smfworks.com/subscribe](https://smfworks.com/subscribe))  
+**Version:** 1.0  
+**Category:** System / Backup
 
 ---
 
 ## What It Does
 
-Claw System Backup creates full backups of your system — files, folders, databases, and system configuration — so you can recover from disasters, migrate to new hardware, or simply restore accidentally deleted files. It runs completely locally with no cloud dependencies.
+Claw System Backup is an OpenClaw Pro skill that creates full compressed tar archives of your home directory (or any configured source), with configurable retention, backup verification via checksums, selective restore by file/folder, and scheduled cleanup of old archives.
+
+Unlike OpenClaw Backup (which only backs up the workspace), Claw System Backup is a general-purpose home directory backup solution — covering all your documents, configurations, projects, and data.
+
+**What it does NOT do:** It does not sync to cloud storage, encrypt archives (use an encrypted filesystem for that), back up mounted network drives, or handle incremental backups (each backup is a full archive).
+
+---
+
+## Prerequisites
+
+- [ ] **SMF Works Pro subscription** — [smfworks.com/subscribe](https://smfworks.com/subscribe)
+- [ ] **Python 3.8 or newer**
+- [ ] **OpenClaw installed and authenticated**
+- [ ] **`tar` command available** — standard on macOS and Linux
+- [ ] **Sufficient disk space** — each backup equals the size of your home directory
 
 ---
 
 ## Installation
 
-This skill is available from the SMF Works Skills Repository.
-
-**Free tier:**
 ```bash
-smfw install claw-system-backup
-```
-
-**Or clone directly:**
-```bash
-git clone https://github.com/smfworks/smfworks-skills
-cd smfworks-skills
-python install.sh
+git clone https://github.com/smfworks/smfworks-skills ~/smfworks-skills
+cd ~/smfworks-skills/skills/claw-system-backup
+python3 main.py --configure
 ```
 
 ---
 
 ## Quick Start
 
-Run your first backup in seconds:
+Create a backup:
 
 ```bash
-python main.py backup
+python3 main.py
+```
+
+Output:
+```
+💾 Creating system backup...
+
+Source: /home/user
+Archive: /home/user/.smf/backups/system-2024-03-15-090001.tar.gz
+Excluding: .cache, __pycache__, node_modules
+
+Progress: ████████████████████ 100%
+
+✅ Backup complete!
+   Archive size: 4.82 GB
+   Files backed up: 47,382
+   Time taken: 3m 42s
+   Retention: Kept last 3 backups, removed 0 old
 ```
 
 ---
 
-## Commands
+## Command Reference
 
-### `backup`
+### Default — Create Backup
 
-**What it does:** Create a full system backup of all specified paths.
-
-**Usage:**
 ```bash
-python main.py backup [options]
+python3 main.py
 ```
 
-**Arguments:**
+Creates a new backup and applies retention policy.
 
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `--dest` | ❌ No | Backup destination folder | `~/Backups` |
-| `--exclude` | ❌ No | Patterns to exclude | `--exclude "*.log"` |
+---
 
-**Example:**
+### `--list` / `-l`
+
+Lists all available backups.
+
 ```bash
-python main.py backup
-python main.py backup --dest ~/Backups
-python main.py backup --exclude "*.tmp" --exclude "__pycache__"
+python3 main.py --list
 ```
 
-**Output:**
+Output:
 ```
-✅ Backup created successfully!
-   ID: BACKUP-20260320-143052
-   Location: ~/.claw-backups/BACKUP-20260320-143052/
-   Size: 2.3 GB
-   Files: 15,432
+💾 Available Backups (3 total):
+
+1. system-2024-03-15-090001.tar.gz
+   Created: 2024-03-15 09:00
+   Size: 4.82 GB
+   Path: /home/user/.smf/backups/system-2024-03-15-090001.tar.gz
+
+2. system-2024-03-14-090001.tar.gz
+   Created: 2024-03-14 09:00
+   Size: 4.79 GB
 ```
 
 ---
 
-### `list`
+### `--verify BACKUP`
 
-**What it does:** Display all existing backups with their status and size.
+Verifies a backup archive's integrity by checking its contents.
 
-**Usage:**
 ```bash
-python main.py list
+python3 main.py --verify /path/to/backup.tar.gz
 ```
 
-**Example:**
-```bash
-python main.py list
+Output:
 ```
-
-**Output:**
-```
-📦 Available Backups:
-------------------------------------------------------------
-1. BACKUP-20260320-143052 | 2.3 GB | 15,432 files | 2026-03-20 14:30
-2. BACKUP-20260319-120000 | 2.1 GB | 14,891 files | 2026-03-19 12:00
-3. BACKUP-20260318-080000 | 2.0 GB | 14,102 files | 2026-03-18 08:00
+🔍 Verifying backup: system-2024-03-15-090001.tar.gz
+   Testing archive integrity...
+   ✅ Archive is valid — 47,382 files verified
 ```
 
 ---
 
-### `restore`
+### `--restore BACKUP`
 
-**What it does:** Restore files from a previous backup.
+Restores from a backup. Extracts the full archive to the source directory.
 
-**Usage:**
 ```bash
-python main.py restore [backup-id]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `backup-id` | ✅ Yes | ID of backup to restore | `BACKUP-20260320-143052` |
-
-**Example:**
-```bash
-python main.py restore BACKUP-20260320-143052
-```
-
-**Output:**
-```
-🔄 Restoring from BACKUP-20260320-143052...
-   Restored: 15,432 files
-   Location: ~/.claw-backups/BACKUP-20260320-143052/
-✅ Restore complete!
+python3 main.py --restore /path/to/backup.tar.gz
 ```
 
 ---
 
-### `status`
+### `--cleanup`
 
-**What it does:** Show current backup status and what would be included in next backup.
+Removes old backups beyond the retention count.
 
-**Usage:**
 ```bash
-python main.py status
-```
-
-**Example:**
-```bash
-python main.py status
-```
-
-**Output:**
-```
-📊 Backup Status:
-   Last backup: 2026-03-20 14:30 (2 hours ago)
-   Next scheduled: 2026-03-21 02:00
-   Files to backup: ~15,500
-   Estimated size: 2.3 GB
+python3 main.py --cleanup
 ```
 
 ---
 
-### `schedule`
+### `--configure` / `-c`
 
-**What it does:** Set up automatic backup schedule using cron.
+Interactive configuration wizard.
 
-**Usage:**
 ```bash
-python main.py schedule [cron-expression]
-```
-
-**Arguments:**
-
-| Argument | Required | Description | Example |
-|----------|----------|-------------|---------|
-| `cron-expression` | ✅ Yes | Standard cron format | `"0 2 * * *"` |
-
-**Example:**
-```bash
-# Daily at 2 AM
-python main.py schedule "0 2 * * *"
-
-# Weekly on Sunday at 3 AM
-python main.py schedule "0 3 * * 0"
-
-# Every 6 hours
-python main.py schedule "0 */6 * * *"
+python3 main.py --configure
 ```
 
 ---
 
 ## Use Cases
 
-- **Disaster recovery:** Restore your system after hardware failure
-- **Migration:** Move to a new computer by restoring your backup
-- **Accidental deletion:** Recover files you accidentally deleted
-- **Before major changes:** Create a backup before system updates
-- **Archive old state:** Keep historical snapshots of your system
+### 1. Weekly home directory backup
+
+```bash
+python3 main.py
+```
+
+### 2. Backup before OS upgrade
+
+```bash
+python3 main.py
+# Then proceed with upgrade
+```
+
+### 3. Verify backup integrity monthly
+
+```bash
+python3 main.py --list
+python3 main.py --verify /path/to/latest-backup.tar.gz
+```
+
+### 4. Restore specific files after accidental deletion
+
+Extract from backup manually:
+```bash
+tar -xzf /path/to/backup.tar.gz home/user/Documents/important-file.txt -C /tmp/
+```
 
 ---
 
-## Tips & Tricks
+## Configuration
 
-- Run `python main.py status` before backups to estimate size and time
-- Use `--exclude` patterns to skip large temporary files
-- Set up scheduled backups with `schedule` for hands-off protection
-- Store backups on an external drive for true disaster recovery
-- Test restores periodically to ensure your backups work
+Config file: `~/.config/smf/skills/claw-system-backup/config.json`
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Source directory | `~` (home directory) | What to back up |
+| Backup directory | `~/.smf/backups` | Where to store backups |
+| Retention count | 3 | Number of backups to keep |
+| Exclude patterns | `.cache`, `__pycache__`, `node_modules`, `.git` | Directories to skip |
+
+Excluded by default to reduce backup size:
+- `.cache/` — browser and app caches (can be regenerated)
+- `__pycache__/` — Python bytecode (regenerated automatically)
+- `node_modules/` — npm packages (restored with `npm install`)
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "Backup destination full" | Free up space or specify a different `--dest` |
-| "Permission denied" | Run with appropriate permissions |
-| Backup too large | Use `--exclude` to skip logs, cache, temp files |
-| Restore fails | Ensure backup ID is correct; check disk space |
+### `Error: SMF Works Pro subscription required`
+**Fix:** Subscribe at [smfworks.com/subscribe](https://smfworks.com/subscribe).
+
+### Backup is taking very long
+Large home directories take time. The progress indicator shows completion percentage. Consider adding more exclusion patterns for large cache or build directories.
+
+### `tar: command not found`
+**Fix:** `tar` is standard on macOS and Linux. If missing: `sudo apt install tar` on Ubuntu.
+
+### Disk full during backup
+**Fix:** Reduce retention count, add exclusion patterns, or back up to a larger drive.
+
+### `--verify` reports corrupt archive
+**Fix:** The backup may have been interrupted. Delete it and create a fresh backup.
+
+---
+
+## FAQ
+
+**Q: How much space do backups take?**  
+A: Each backup equals roughly the size of your home directory minus excluded directories. With 3-backup retention, you need ~3× home directory size free.
+
+**Q: Are node_modules excluded by default?**  
+A: Yes — they're large, easily regenerated with `npm install`, and don't belong in backups. The exclusion list is configurable.
+
+**Q: Can I back up just one directory instead of the whole home?**  
+A: Yes — configure the source directory to any path via `--configure`.
+
+**Q: How do I restore a single file?**  
+A: Extract it manually: `tar -xzf backup.tar.gz --strip-components=1 -C /tmp/ path/to/file`
 
 ---
 
 ## Requirements
 
-- Python 3.8+
-- OpenClaw installed
-- Sufficient disk space for backups
-- (Optional) `rsync` for efficient incremental backups
+| Requirement | Value |
+|-------------|-------|
+| Python | 3.8 or newer |
+| tar | Standard on macOS/Linux |
+| SMF Works Pro | Required ($19.99/mo) |
+| Disk space | ~3× home directory size (for 3-backup retention) |
+| External APIs | None |
 
 ---
 
 ## Support
 
-- 📖 [Full Documentation](https://smfworks.com/skills/claw-system-backup)
-- 🐛 [Report Issues](https://github.com/smfworks/smfworks-skills/issues)
-- 💬 [SMF Works](https://smfworks.com)
+- 📖 [Documentation](https://smfworks.com/skills/claw-system-backup)
+- 🔑 [Subscribe](https://smfworks.com/subscribe)
+- 🐛 [Issues](https://github.com/smfworks/smfworks-skills/issues)
+- 💬 [Discord](https://discord.gg/smfworks)
