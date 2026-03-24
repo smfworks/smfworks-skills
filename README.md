@@ -2,7 +2,7 @@
 
 A curated collection of productivity skills for OpenClaw — from everyday utilities to business automation tools.
 
-**26 Skills Total:** 12 Free (forever) + 14 Pro (subscription)
+**27 Skills Total:** 13 Free (forever) + 14 Pro (subscription)
 
 ---
 
@@ -27,7 +27,7 @@ smfw run file-organizer organize-date ~/Downloads
 
 ---
 
-## 🎁 Free Skills (12)
+## 🎁 Free Skills (13)
 
 No subscription required. No auth needed. Just works.
 
@@ -45,6 +45,7 @@ No subscription required. No auth needed. Just works.
 | 10 | **Markdown Converter** | Convert Markdown to HTML, text, extract TOC | `smfw install markdown-converter` |
 | 11 | **Daily News Digest** | Curated news delivered daily to your interests | `smfw install daily-news-digest` |
 | 12 | **Skill Manager** | Visual tool for managing installed OpenClaw skills | `smfw install skill-manager` |
+| 13 | **Webcam Capture** | Capture photos and short videos from webcam | `smfw install webcam-capture` |
 
 ---
 
@@ -54,20 +55,20 @@ Premium skills for business automation. Requires SMF Works subscription ($19.99/
 
 | # | Skill | Description | Install |
 |---|-------|-------------|---------|
-| 13 | **Lead Capture** | Capture, qualify, and manage sales leads | `smfw install lead-capture` |
-| 14 | **Coffee Briefing** | Your personal morning briefing with weather and priorities | `smfw install coffee-briefing` |
-| 15 | **Morning Commute** | Your daily commute briefing with traffic, transit, and weather | `smfw install morning-commute` |
-| 16 | **OpenClaw Backup** | Daily backup of your OpenClaw agent with 2-day rolling retention | `smfw install openclaw-backup` |
-| 17 | **Claw System Backup** | Weekly full Linux system backup with compression and verification | `smfw install claw-system-backup` |
-| 18 | **Database Backup** | Backup SQLite, PostgreSQL, MySQL with compression | `smfw install database-backup` |
-| 19 | **Report Generator** | Create business reports from CSV/JSON data | `smfw install report-generator` |
-| 20 | **Email Campaign** | Create and send email campaigns with tracking | `smfw install email-campaign` |
-| 21 | **Task Manager** | Kanban project management with deadlines | `smfw install task-manager` |
-| 22 | **Self-Improvement** | Log errors and learnings for continuous improvement | `smfw install self-improvement` |
-| 23 | **Invoice Generator** | Create professional invoices, track payments | `smfw install invoice-generator` |
-| 24 | **Form Builder** | Create forms, collect responses, export data | `smfw install form-builder` |
-| 25 | **Booking Engine** | Appointment scheduling with availability management | `smfw install booking-engine` |
-| 26 | **OpenClaw Optimizer** | Audit workspace for cost and performance optimization | `smfw install openclaw-optimizer` |
+| 14 | **Lead Capture** | Capture, qualify, and manage sales leads | `smfw install lead-capture` |
+| 15 | **Coffee Briefing** | Your personal morning briefing with weather and priorities | `smfw install coffee-briefing` |
+| 16 | **Morning Commute** | Your daily commute briefing with traffic, transit, and weather | `smfw install morning-commute` |
+| 17 | **OpenClaw Backup** | Daily backup of your OpenClaw agent with 2-day rolling retention | `smfw install openclaw-backup` |
+| 18 | **Claw System Backup** | Weekly full Linux system backup with compression and verification | `smfw install claw-system-backup` |
+| 19 | **Database Backup** | Backup SQLite, PostgreSQL, MySQL with compression | `smfw install database-backup` |
+| 20 | **Report Generator** | Create business reports from CSV/JSON data | `smfw install report-generator` |
+| 21 | **Email Campaign** | Create and send email campaigns with tracking | `smfw install email-campaign` |
+| 22 | **Task Manager** | Kanban project management with deadlines | `smfw install task-manager` |
+| 23 | **Self-Improvement** | Log errors and learnings for continuous improvement | `smfw install self-improvement` |
+| 24 | **Invoice Generator** | Create professional invoices, track payments | `smfw install invoice-generator` |
+| 25 | **Form Builder** | Create forms, collect responses, export data | `smfw install form-builder` |
+| 26 | **Booking Engine** | Appointment scheduling with availability management | `smfw install booking-engine` |
+| 27 | **OpenClaw Optimizer** | Audit workspace for cost and performance optimization | `smfw install openclaw-optimizer` |
 
 ---
 
