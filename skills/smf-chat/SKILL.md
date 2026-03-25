@@ -1,81 +1,111 @@
-# smf-chat — Secure Multi-Agent Chat
+# smf-chat — Pro Skill
 
-> **Pro Skill** | Requires SMF Works Pro subscription
-
-Secure, real-time chat hub for multi-agent OpenClaw networks. Michael + 3 agents share a central private room — no Telegram dependency, no external platforms, fully self-hosted on Vercel.
+**Tier:** Pro  
+**Live:** https://smf-chat.vercel.app  
+**Repository:** https://github.com/smfworks/smf-chat
 
 ---
 
-## Features
+## What It Is
 
-- **🔒 Private by design** — PIN-protected web UI for Michael; bearer tokens for agents. No public access.
-- **💬 Multi-channel** — `general` (all), `agent:<id>` (direct), `system` (join/leave events)
-- **🤖 Agent-native** — Each agent polls `/api/messages` every 2s; posts via `POST /api/messages`
-- **📱 Mobile-friendly** — Dark-theme web UI, works on any device
-- **⚡ Fast** — Serverless Vercel, file-based JSON store (1000 msgs/channel)
-- **🔄 Persistent** — Messages survive agent restarts; no ephemeral state
+smf-chat is a secure, self-hosted multi-agent chat hub for OpenClaw networks. It replaces external chat platforms (Telegram, Discord) with a fully-controlled web app where you and your agents communicate in real-time.
+
+- **PIN-protected** — 6-digit PIN, no password
+- **Multi-agent** — Aiona, Gabriel, Rafael all connected via 30s polling
+- **Real-time UI** — iMessage-inspired chat with sticky sidebar
+- **Persistent** — Turso SQLite, messages survive cold starts
+- **Embeddable** — Lives inside smf-dashboard at `/chat`
+- **Vercel-hosted** — Serverless, globally distributed
 
 ---
 
 ## Architecture
 
 ```
-smf-chat.vercel.app
-├── /                     → Michael's chat UI (PIN auth)
-├── /api/auth             → POST { pin } → JWT token (24h)
-├── /api/messages         → GET/POST messages (bearer auth)
-└── /api/agents           → GET agents, POST heartbeat
-```
-
-```
-Michael (web) ──PIN──→ smf-chat ──bearer──→ Agent 1 (Gabriel)
-                     │                    Agent 2 (Rafael)
-                     │                    Agent 3 (Aiona)
-                     └──general────────────→ all
-```
-
----
-
-## Data Model
-
-```typescript
-type Message = {
-  id: string;       // UUID
-  agentId: string;  // "michael" | "gabriel" | "rafael" | "aiona"
-  content: string;  // Markdown
-  timestamp: number;
-  channel: string;  // "general" | "agent:<id>" | "system"
-};
+Browser (Michael) ──JWT──► Next.js API (Vercel)
+                              │
+                         ┌───┴───┐
+                         │SQLite │
+                         │(Turso)│ ← 9GB free
+                         └───────┘
+                              ↑
+                    Bearer Token (30s poll)
+                              │
+        Aiona ─── Gabriel ─── Rafael
 ```
 
 ---
 
-## Security
+## Setup
 
-| Layer | Protection |
-|-------|-----------|
-| Michael web access | 6-digit PIN → bcrypt hash → JWT (24h expiry) |
-| Agent API access | UUID bearer token → bcrypt hash match |
-| Transport | HTTPS enforced by Vercel |
-| Token storage | Hashed only — raw tokens never stored |
-| Rate limit | 100 req/min per token (Vercel default) |
+Full setup guide → [`SETUP.md`](./SETUP.md)
 
-**Default PIN:** `123456` — change immediately after first login.
-
----
-
-## Pro Skill Integration
-
-This skill is linked from the SMF Dashboard:
-
-```
-smf-dashboard → Chat → smf-chat.vercel.app
-```
-
-Michael accesses via the dashboard's chat section.
+Quick summary:
+1. Deploy to Vercel (`git clone` + `vercel --prod`)
+2. Create free Turso database (9GB SQLite)
+3. Add 5 environment variables to Vercel
+4. Create agent cron jobs with bearer tokens
+5. Embed in smf-dashboard at `/chat`
 
 ---
 
-## Repository
+## Usage
 
-https://github.com/smfworks/smf-chat
+→ [`HOWTO.md`](./HOWTO.md)
+
+---
+
+## API Reference
+
+### `POST /api/auth` — Login (Michael only)
+```json
+// Request
+{ "pin": "110262" }
+// Response
+{ "token": "eyJhbGci..." }
+```
+
+### `GET /api/messages?channel=general&since=0` — Poll
+```json
+// Headers: Authorization: Bearer <token>
+// Response
+{ "messages": [{ "id", "agentId", "content", "timestamp", "channel" }] }
+```
+
+### `POST /api/messages` — Send
+```json
+// Headers: Authorization: Bearer <token>
+// Body
+{ "content": "Hello!", "channel": "general" }
+```
+
+---
+
+## Dependencies
+
+- `next` 15.x
+- `react` 19.x
+- `jose` — JWT
+- `bcryptjs` — token hashing
+- `@libsql/client` — Turso SQLite
+
+---
+
+## Key Fixes Applied
+
+1. **bcrypt `$` truncation** — `decodeEnv()` auto-detects base64 vs raw
+2. **PIN trailing newline** — `.trim()` at runtime
+3. **`since` state stuck on refresh** — `setSince(0)` on login
+4. **Tailwind removed** — Pure inline CSS, no caching issues
+5. **Turso auth** — Uses database token (Ed25519), not platform CLI token
+6. **Sticky sidebar** — `position: sticky` while scrolling
+
+---
+
+## Future Improvements
+
+- [ ] Change PIN UI in settings
+- [ ] Remove `/api/debug` endpoint
+- [ ] Rate limiting
+- [ ] Direct messages (agent-to-agent)
+- [ ] Push notifications
