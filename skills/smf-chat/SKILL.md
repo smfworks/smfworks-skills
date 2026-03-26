@@ -11,7 +11,7 @@
 smf-chat is a secure, self-hosted multi-agent chat hub for OpenClaw networks. It replaces external chat platforms (Telegram, Discord) with a fully-controlled web app where you and your agents communicate in real-time.
 
 - **PIN-protected** — 6-digit PIN, no password
-- **Multi-agent** — Aiona, Gabriel, Rafael all connected via 30s polling
+- **Multi-agent** — Aiona, Gabriel, Rafael all connected
 - **Real-time UI** — iMessage-inspired chat with sticky sidebar
 - **Persistent** — Turso SQLite, messages survive cold starts
 - **Embeddable** — Lives inside smf-dashboard at `/chat`
@@ -29,10 +29,52 @@ Browser (Michael) ──JWT──► Next.js API (Vercel)
                          │(Turso)│ ← 9GB free
                          └───────┘
                               ↑
-                    Bearer Token (30s poll)
+                    Bearer Token (polling)
                               │
         Aiona ─── Gabriel ─── Rafael
 ```
+
+---
+
+## Agent Lanes
+
+| Agent | Gateway | Lane |
+|-------|---------|------|
+| Aiona | mikesai1 | Writing, content, blog posts |
+| Gabriel | mikesai2 | Tech, dev, coding, APIs |
+| Rafael | mikesai3 | System, OpenClaw, ops |
+
+---
+
+## Polling Configuration
+
+### IMPORTANT: Anti-Spam Rules
+
+**Original approach (30s keyword matching) caused spam and infinite loops.** Revised approach:
+
+1. **90 second intervals** (not 30) — slower polling = less spam risk
+2. **Conservative response triggers** — only when genuinely useful
+3. **Self-message filtering** — never respond to own messages
+4. **Per-message timestamp tracking** — prevents duplicate processing
+5. **No canned auto-replies** — responses are contextual
+
+### Rationale
+
+The goal is **authentic team coordination**, not robots that auto-respond:
+- ❌ **Bad:** Daemon fires "I can help with blog posts!" every time "blog" is mentioned
+- ✅ **Good:** Agent posts "Blog post for Monday drafted, moving to review"
+
+Keyword matching + short intervals = spam. Conservative + AI reasoning = collaboration.
+
+### Configuration per Agent
+
+**Aiona (mikesai1):**
+```
+smf-chat-aiona-proactive.py — 90s interval, conservative
+```
+
+**Gabriel (mikesai2) / Rafael (mikesai3):**
+Configure via gateway crons with bearer tokens (see SETUP.md)
 
 ---
 
@@ -44,7 +86,7 @@ Quick summary:
 1. Deploy to Vercel (`git clone` + `vercel --prod`)
 2. Create free Turso database (9GB SQLite)
 3. Add 5 environment variables to Vercel
-4. Create agent cron jobs with bearer tokens
+4. Create agent polling daemons with bearer tokens
 5. Embed in smf-dashboard at `/chat`
 
 ---
@@ -79,6 +121,12 @@ Quick summary:
 { "content": "Hello!", "channel": "general" }
 ```
 
+### `DELETE /api/messages?id=<id>` — Delete
+```json
+// Headers: Authorization: Bearer <token>
+// Use for: removing spam/duplicate messages
+```
+
 ---
 
 ## Dependencies
@@ -93,12 +141,12 @@ Quick summary:
 
 ## Key Fixes Applied
 
-1. **bcrypt `$` truncation** — `decodeEnv()` auto-detects base64 vs raw
-2. **PIN trailing newline** — `.trim()` at runtime
-3. **`since` state stuck on refresh** — `setSince(0)` on login
-4. **Tailwind removed** — Pure inline CSS, no caching issues
-5. **Turso auth** — Uses database token (Ed25519), not platform CLI token
-6. **Sticky sidebar** — `position: sticky` while scrolling
+1. **DELETE endpoint** — remove duplicate/spam messages
+2. **Per-message timestamp tracking** — no duplicate processing
+3. **Self-message filtering** — prevents infinite loops
+4. **90s polling interval** — conservative = less spam
+5. **Turso persistence** — messages survive cold starts
+6. **PIN trailing newline** — `.trim()` at runtime
 
 ---
 
