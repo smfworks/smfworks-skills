@@ -2,6 +2,26 @@
 
 A curated collection of productivity skills for OpenClaw — from everyday utilities to business automation tools.
 
+## OpenClaw companion
+
+These skills run on OpenClaw. **OpenClaw is not an SMF Works product.** Install it from upstream:
+
+- **Repository:** [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw)
+- **Site:** [openclaw.ai](https://openclaw.ai)
+- **Docs:** [docs.openclaw.ai](https://docs.openclaw.ai)
+
+[smfworks/openclaw](https://github.com/smfworks/openclaw) is an SMF fork/mirror of that upstream repo. It is not the canonical install.
+
+SMF Works authors three companions only. The canonical map is [companion-bundle.md](https://github.com/smfworks/smf-openclaw-vision/blob/main/docs/companion-bundle.md) in the vision repo (a short pointer is in [docs/companion-bundle.md](docs/companion-bundle.md)):
+
+| Piece | Repository | Purpose |
+| --- | --- | --- |
+| Skills (this repo) | [smfworks/smfworks-skills](https://github.com/smfworks/smfworks-skills) | Free OpenClaw skills for everyday file, document, and system tasks. |
+| Memory | [smfworks/mnemosyne-openclaw](https://github.com/smfworks/mnemosyne-openclaw) | Offline SQLite memory plugin for the OpenClaw gateway. |
+| Vision | [smfworks/smf-openclaw-vision](https://github.com/smfworks/smf-openclaw-vision) | Community guide for iPhone vision over Tailscale. |
+
+**Suggested order:** upstream OpenClaw → skills (this repo) → optional memory → optional vision. Memory and vision are optional. Free skills install with the `install.sh` / `smfw` flow in Quick Start below.
+
 **27 Skills Total:** 13 Free (forever) + 14 Pro (subscription)
 
 ---
@@ -144,7 +164,8 @@ smfworks-skills/
 │   └── smf_login.py             # Authentication helper
 ├── docs/
 │   ├── AUTH_SYSTEM.md           # Authentication documentation
-│   └── SUBSCRIPTION_ARCHITECTURE.md
+│   ├── SUBSCRIPTION_ARCHITECTURE.md
+│   └── companion-bundle.md      # Pointer to the canonical companion map
 ├── install.sh                   # One-liner installer
 ├── shared/
 │   └── smf_auth.py              # Shared auth library (Pro skills)
@@ -278,7 +299,7 @@ smf run form-builder export FORM-ABC --format csv
 
 ## 🤝 Contributing
 
-SMF Works builds and maintains all skills. No external contributors (keeps quality high, support manageable).
+SMF Works builds and maintains the skills in this repository. OpenClaw itself is upstream software; SMF does not maintain it. No external contributors (keeps quality high, support manageable).
 
 **Report issues:** https://github.com/smfworks/smfworks-skills/issues
 
@@ -294,6 +315,12 @@ SMF Works builds and maintains all skills. No external contributors (keeps quali
 
 ## 🔗 Links
 
+- **OpenClaw (upstream):** https://github.com/openclaw/openclaw
+- **OpenClaw site:** https://openclaw.ai
+- **OpenClaw docs:** https://docs.openclaw.ai
+- **Companion map:** https://github.com/smfworks/smf-openclaw-vision/blob/main/docs/companion-bundle.md
+- **Mnemosyne memory:** https://github.com/smfworks/mnemosyne-openclaw
+- **Vision guide:** https://github.com/smfworks/smf-openclaw-vision
 - **Website:** https://smf.works
 - **Subscribe:** https://smf.works/subscribe
 - **Repository:** https://github.com/smfworks/smfworks-skills
